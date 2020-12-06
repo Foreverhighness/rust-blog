@@ -23,9 +23,21 @@ _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
 
 
 
+## 引言
+
 ## Intro
 
+我曾经也抱有上述的这些误解，并且现在仍有许多初学者深陷其中。本文中我使用的术语可能并不那么官方，因此下面列出了一个表格，记录我使用的短语及其想表达的含义。
+
 I've held all of these misconceptions at some point and I see many beginners struggle with these misconceptions today. Some of my terminology might be non-standard, so here's a table of shorthand phrases I use and what I intend for them to mean.
+
+| 短语 | 意义 |
+|-|-|
+| `T` | 1) 所有可能类型的集合 _或_<br>2) 上述集合的某一个具体类型 |
+| 所有权类型 | 某些非引用类型，其自身拥有所有权 例如 `i32`, `String`, `Vec` 等等 |
+| 1) 借用类型 _或_<br>2) 引用类型 | 引用类型，不考虑可变性 例如 `&i32`, `&mut i32` 等等 |
+| 1) 可变引用 _或_<br>2) 独占引用 | 独占可变引用, 即 `&mut T` |
+| 1) 不可变引用 _或_<br>2) 共享引用 | 可共享不可变引用, 即 `&T` |
 
 | Phrase | Shorthand for |
 |-|-|
@@ -37,29 +49,53 @@ I've held all of these misconceptions at some point and I see many beginners str
 
 
 
+## 误解
+
 ## The Misconceptions
+
+简单来讲，一个变量的生命周期是指一段时期，在这段时期内，该变量所指向的内存地址中的数据是有效的，这段时期是由编译器静态分析得出的，有效性由编译器保证。接下来我将探讨这些常见误解的细节。
 
 In a nutshell: A variable's lifetime is how long the data it points to can be statically verified by the compiler to be valid at its current memory address. I'll now spend the next ~6500 words going into more detail about where people commonly get confused.
 
 
 
+### 1) `T` 只包含所有权类型
+
 ### 1) `T` only contains owned types
+
+这更像是对泛型的误解而非对生命周期的误解，但在 Rust 中，泛型与生命周期的关系是如此紧密，以至于不可能只讨论其中一个而忽视另外一个。
 
 This misconception is more about generics than lifetimes but generics and lifetimes are tightly intertwined in Rust so it's not possible to talk about one without also talking about the other. Anyway:
 
+当我刚开始学习 Rust 时，我知道 `i32`, `&i32`, 和 `&mut i32` 是不同的类型，同时我也知泛型 `T` 表示所有可能类型的集合。然而，尽管能分别理解这两个概念，但我却没能将二者结合起来。在当时我这位 Rust 初学者的眼里，泛型是这样运作的：
+
 When I first started learning Rust I understood that `i32`, `&i32`, and `&mut i32` are different types. I also understood that some generic type variable `T` represents a set which contains all possible types. However, despite understanding both of these things separately, I wasn't able to understand them together. In my newbie Rust mind this is how I thought generics worked:
+
+| | | | |
+|-|-|-|-|
+| **类型** | `T` | `&T` | `&mut T` |
+| **例子** | `i32` | `&i32` | `&mut i32` |
 
 | | | | |
 |-|-|-|-|
 | **Type Variable** | `T` | `&T` | `&mut T` |
 | **Examples** | `i32` | `&i32` | `&mut i32` |
 
+其中 `T` 包全体所有权类型；`&T` 包括全体不可变引用；`&mut T` 包括全体可变引用；`T`, `&T`, 和 `&mut T` 是不相交的有限集。简洁明了，符合直觉，却完全错误。事实上泛型是这样运作的：
+
 `T` contains all owned types. `&T` contains all immutably borrowed types. `&mut T` contains all mutably borrowed types. `T`, `&T`, and `&mut T` are disjoint finite sets. Nice, simple, clean, easy, intuitive, and completely totally wrong. This is how generics actually work in Rust:
+
+| | | | |
+|-|-|-|-|
+| **类型** | `T` | `&T` | `&mut T` |
+| **例子** | `i32`, `&i32`, `&mut i32`, `&&i32`, `&mut &mut i32`, ... | `&i32`, `&&i32`, `&&mut i32`, ... | `&mut i32`, `&mut &mut i32`, `&mut &i32`, ... |
 
 | | | | |
 |-|-|-|-|
 | **Type Variable** | `T` | `&T` | `&mut T` |
 | **Examples** | `i32`, `&i32`, `&mut i32`, `&&i32`, `&mut &mut i32`, ... | `&i32`, `&&i32`, `&&mut i32`, ... | `&mut i32`, `&mut &mut i32`, `&mut &i32`, ... |
+
+`T`, `&T`, 和 `&mut T` 都是无限集，因为你可以借用一个类型无限次。`T` 是 `&T` 和 `&mut T` 的超集。`&T` 和 `&mut T` 是不相交的集合. 下面有一些例子来验证这些概念：
 
 `T`, `&T`, and `&mut T` are all infinite sets, since it's possible to borrow a type ad-infinitum. `T` is a superset of both `&T` and `&mut T`. `&T` and `&mut T` are disjoint sets. Here's a couple examples which validate these concepts:
 
@@ -68,10 +104,14 @@ trait Trait {}
 
 impl<T> Trait for T {}
 
+                        // 编译错误
 impl<T> Trait for &T {} // compile error
 
+                            // 编译错误
 impl<T> Trait for &mut T {} // compile error
 ```
+
+上述代码不能编译通过：
 
 The above program doesn't compile as expected:
 
@@ -95,20 +135,36 @@ error[E0119]: conflicting implementations of trait `Trait` for type `&mut _`:
   | ^^^^^^^^^^^^^^^^^^^^^^^^ conflicting implementation for `&mut _`
 ```
 
+编译器不允许我们为 `&T` 和 `&mut T` 实现 `Trait`，因为这与我们为 `T` 实现的 `Trait` 发生了冲突，而 `T` 已经包括了 `&T` 和 `&mut T`. 因为 `&T` 和 `&mut T` 是不相交的，所以下面的代码可以通过编译
+
 The compiler doesn't allow us to define an implementation of `Trait` for `&T` and `&mut T` since it would conflict with the implementation of `Trait` for `T` which already includes all of `&T` and `&mut T`. The program below compiles as expected, since `&T` and `&mut T` are disjoint:
 
 ```rust
 trait Trait {}
 
+                        // 编译通过
 impl<T> Trait for &T {} // compiles
 
+                            // 编译通过
 impl<T> Trait for &mut T {} // compiles
 ```
+
+**关键点回顾**
+- `T` 是 `&T` 和 `&mut T` 的超集
+- `&T` 和 `&mut T` 是不相交的集合
 
 **Key Takeaways**
 - `T` is a superset of both `&T` and `&mut T`
 - `&T` and `&mut T` are disjoint sets
 
+
+### 2) 如果 `T: 'static` 那么 `T` 直到程序结束为止都一定是有效的
+
+**错误的推论**
+- `T: 'static` 应该视为 _“`T` 有着 `'static`生命周期”_
+- `&'static T` 和 `T: 'static` 是一回事
+- 若 `T: 'static` 则 `T` 一定是不可变的
+- 若 `T: 'static` 则 `T` 只能在编译期创建
 
 ### 2) if `T: 'static` then `T` must be valid for the entire program
 
@@ -118,13 +174,18 @@ impl<T> Trait for &mut T {} // compiles
 - if `T: 'static` then `T` must be immutable
 - if `T: 'static` then `T` can only be created at compile time
 
+让大多数 Rust 初学者第一次接触 `'static` 生命周期注解的代码示例大概是这样的：
+
 Most Rust beginners get introduced to the `'static` lifetime for the first time in a code example that looks something like this:
 
 ```rust
 fn main() {
+                                    // "字符串字面量"
     let str_literal: &'static str = "str literal";
 }
 ```
+
+他们被告知说 `"字符串字面量"` 是被硬编码到编译出来的二进制文件当中去的，并在运行时被加载到只读内存中，所以它不可变且在程序的整个运行期间都有效，这也使其生命周期为 `'static`. 在了解到 Rust 使用 `static` 来定义静态变量这一语法后，这一观点还会被进一步加强。
 
 They get told that `"str literal"` is hardcoded into the compiled binary and is loaded into read-only memory at run-time so it's immutable and valid for the entire program and that's what makes it `'static`. These concepts are further reinforced by the rules surrounding defining `static` variables using the `static` keyword.
 
@@ -133,6 +194,7 @@ static BYTES: [u8; 3] = [1, 2, 3];
 static mut MUT_BYTES: [u8; 3] = [1, 2, 3];
 
 fn main() {
+                      // 编译错误，修改静态变量是 unsafe 的
    MUT_BYTES[0] = 99; // compile error, mutating static is unsafe
 
     unsafe {
@@ -142,28 +204,44 @@ fn main() {
 }
 ```
 
+关于静态变量
+- 它们只能在编译期创建
+- 它们应当是不可变的，修改静态变量是 unsafe 的
+- 它们在整个程序运行期间有效
+
 Regarding `static` variables
 - they can only be created at compile-time
 - they should be immutable, mutating them is unsafe
 - they're valid for the entire program
 
+静态变量的默认生命周期很有可能是 `'static` , 对吧？所以可以合理推测 `'static` 生命周期也要遵循同样的规则，对吧？
+
 The `'static` lifetime was probably named after the default lifetime of `static` variables, right? So it makes sense that the `'static` lifetime has to follow all the same rules, right?
+
+确实，但_带有_ `'static` 生命周期注解的类型和一个被 `'static` _约束_的类型是不一样的。后者可以于运行时被动态分配，能被安全自由地修改，也可以被 drop, 还能存活任意的时长。
 
 Well yes, but a type _with_ a `'static` lifetime is different from a type _bounded by_ a `'static` lifetime. The latter can be dynamically allocated at run-time, can be safely and freely mutated, can be dropped, and can live for arbitrary durations.
 
+区分 `&'static T` 和 `T: 'static` 是非常重要的一点。
+
 It's important at this point to distinguish `&'static T` from `T: 'static`.
+
+`&'static T` 是一个指向 `T` 的不可变引用，其中 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。这只有在 `T` 自身不可变且保证_在引用创建后_不会被 move 时才有可能。`T` 并不需要在编译时创建。 我们可以以内存泄漏为代价，在运行时动态创建随机数据，并返回其 `'static` 引用，比如：
 
 `&'static T` is an immutable reference to some `T` that can be safely held indefinitely long, including up until the end of the program. This is only possible if `T` itself is immutable and does not move _after the reference was created_. `T` does not need to be created at compile-time. It's possible to generate random dynamically allocated data at run-time and return `'static` references to it at the cost of leaking memory, e.g.
 
 ```rust
 use rand;
 
+// 在运行时生成随机 &'static str
 // generate random 'static str refs at run-time
 fn rand_str_generator() -> &'static str {
     let rand_string = rand::random::<u64>().to_string();
     Box::leak(rand_string.into_boxed_str())
 }
 ```
+
+`T: 'static` 是指 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。 `T: 'static` 在包括了全部 `&'static T` 的同时，还包括了全部所有权类型， 比如 `String`, `Vec` 等等。 数据的所有者保证，只要自身还持有数据的所有权，数据就不会失效，因此所有者能够安全地无期限地持有其数据，甚至可以直到程序结束。`T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_而非_“`T` 有着 `'static` 生命周期”_。 一个程序可以帮助阐述这些概念：
 
 `T: 'static` is some `T` that can be safely held indefinitely long, including up until the end of the program. `T: 'static` includes all `&'static T` however it also includes all owned types, like `String`, `Vec`, etc. The owner of some data is guaranteed that data will never get invalidated as long as the owner holds onto it, therefore the owner can safely hold onto the data indefinitely long, including up until the end of the program. `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_ not _"`T` has a `'static` lifetime"_. A program to help illustrate these concepts:
 
@@ -178,6 +256,8 @@ fn main() {
     let mut strings: Vec<String> = Vec::new();
     for _ in 0..10 {
         if rand::random() {
+            // 所有字符串都是随机生成的
+            // 并且在运行时动态分配
             // all the strings are randomly generated
             // and dynamically allocated at run-time
             let string = rand::random::<u64>().to_string();
@@ -185,64 +265,103 @@ fn main() {
         }
     }
 
+    // 这些字符串是所有权类型，所以他们满足 'static 生命周期约束
     // strings are owned types so they're bounded by 'static
     for mut string in strings {
+        // 这些字符串是可变的
         // all the strings are mutable
         string.push_str("a mutation");
+        // 这些字符串都可以被 drop
         // all the strings are droppable
         drop_static(string); // compiles
     }
 
+    // 这些字符串在程序结束之前就已经全部失效了
     // all the strings have been invalidated before the end of the program
     println!("i am the end of the program");
 }
 ```
 
+**关键点回顾**
+- `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
+- 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型_或_是一个所有权类型
+- 因为 `T: 'static` 包括了所有权类型，所以 `T`
+    - 可以在运行时动态分配
+    - 不需要在整个程序运行期间都有效
+    - 可以安全，自由地修改
+    - 可以在运行时被动态的 drop
+    - 可以有不同长度的生命周期
+
 **Key Takeaways**
 - `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_
 - if `T: 'static` then `T` can be a borrowed type with a `'static` lifetime _or_ an owned type
 - since `T: 'static` includes owned types that means `T`
-    - can be dynamically allocated at run-time
-    - does not have to be valid for the entire program
-    - can be safely and freely mutated
-    - can be dynamically dropped at run-time
-    - can have lifetimes of different durations
+  - can be dynamically allocated at run-time
+  - does not have to be valid for the entire program
+  - can be safely and freely mutated
+  - can be dynamically dropped at run-time
+  - can have lifetimes of different durations
 
 
+
+### 3) `&'a T` 和 `T: 'a` 是一回事
 
 ### 3) `&'a T` and `T: 'a` are the same thing
 
+这个误解是前一个误解的泛化版本。
+
 This misconception is a generalized version of the one above.
 
+`&'a T` 要求并隐含了 `T: 'a` ，因为如果 `T` 本身不能在 `'a` 范围内保证有效，那么其引用也不能在 `'a` 范围内保证有效。例如，Rust 编译器不会运行构造一个 `&'static Ref<'a, T>`，因为如果 `Ref` 只在 `'a` 范围内有效，我们就不能给它 `'static` 生命周期。
+
 `&'a T` requires and implies `T: 'a` since a reference to `T` of lifetime `'a` cannot be valid for `'a` if `T` itself is not valid for `'a`. For example, the Rust compiler will never allow the construction of the type `&'static Ref<'a, T>` because if `Ref` is only valid for `'a` we can't make a `'static` reference to it.
+
+`T: 'a` 包括了全体 `&'a T`，但反之不成立。
 
 `T: 'a` includes all `&'a T` but the reverse is not true.
 
 ```rust
+// 只接受带有 'a 生命周期注解的引用类型
 // only takes ref types bounded by 'a
 fn t_ref<'a, T: 'a>(t: &'a T) {}
 
+// 接受满足 'a 生命周期约束的任何类型
 // takes any types bounded by 'a
 fn t_bound<'a, T: 'a>(t: T) {}
 
+// 内部含有引用的所有权类型
 // owned type which contains a reference
 struct Ref<'a, T: 'a>(&'a T);
 
 fn main() {
     let string = String::from("string");
 
+                      // 编译通过
+                           // 编译通过
+                            // 编译通过
     t_bound(&string); // compiles
     t_bound(Ref(&string)); // compiles
     t_bound(&Ref(&string)); // compiles
 
+                    // 编译通过
+                         // 编译通过
+                          // 编译通过
     t_ref(&string); // compiles
     t_ref(Ref(&string)); // compile error, expected ref, found struct
     t_ref(&Ref(&string)); // compiles
 
+    // 满足 'static 约束的字符串变量可以转换为 'a 约束
     // string var is bounded by 'static which is bounded by 'a
+                     // 编译通过
     t_bound(string); // compiles
 }
 ```
+
+**关键点回顾**
+- `T: 'a` 比 `&'a T` 更泛化，更灵活
+- `T: 'a` 接受所有权类型，内部含有引用的所有权类型，和引用
+- `&'a T` 只接受引用
+- 若 `T: 'static` 则 `T: 'a` 因为对于所有 `'a` 都有 `'static` >= `'a`
 
 **Key Takeaways**
 - `T: 'a` is more general and more flexible than `&'a T`
@@ -252,16 +371,29 @@ fn main() {
 
 
 
+### 4) 我的代码里不含泛型也不含生命周期注解
+
+**错误的推论**
+- 避免使用泛型和生命周期注解是可能的
+
 ### 4) my code isn't generic and doesn't have lifetimes
 
 **Misconception Corollaries**
 - it's possible to avoid using generics and lifetimes
+
+这个让人爽到的误解之所以能存在，要得益于 Rust 的生命周期省略规则，这个规则能允许你在函数定义以及 `impl` 块中省略掉显式的生命周期注解，而由借用检查器来根据以下规则对生命周期进行隐式推导。
+- 第一条规则是每一个是引用的参数都有它自己的生命周期参数
+- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
+- 第三条规则是如果是有多个输入生命周期参数的方法，而其中一个参数是 `&self` 或 `&mut self`, 那么所有输出生命周期参数被赋予 `self` 的生命周期。
+- 其他情况下，生命周期必须有明确的注解
 
 This comforting misconception is kept alive thanks to Rust's lifetime elision rules, which allow you to omit lifetime annotations in functions because the Rust borrow checker will infer them following these rules:
 - every input ref to a function gets a distinct lifetime
 - if there's exactly one input lifetime it gets applied to all output refs
 - if there's multiple input lifetimes but one of them is `&self` or `&mut self` then the lifetime of `self` is applied to all output refs
 - otherwise output lifetimes have to be made explicit
+
+这里有不少值得讲的东西，让我们来看一些例子：
 
 That's a lot to take in so lets look at some examples:
 
@@ -309,6 +441,14 @@ fn compare(&self, s: &str) -> &str;
 fn compare<'a, 'b>(&'a self, &'b str) -> &'a str;
 ```
 
+如果你写过
+- 结构体方法
+- 接收参数中有引用的函数
+- 返回值是引用的函数
+- 泛型函数
+- trait object(后面将讨论)
+- 闭包（后面将讨论）
+
 If you've ever written
 - a struct method
 - a function which takes references
@@ -317,12 +457,24 @@ If you've ever written
 - a trait object (more on this later)
 - a closure (more on this later)
 
+那么对于上面这些，你的代码中都有被省略的泛型生命周期注解。
+
 then your code has generic elided lifetime annotations all over it.
+
+**关键点回顾**
+- 几乎所有的 Rust 代码都是泛型代码，并且到处都带有被省略掉的泛型生命周期注解
 
 **Key Takeaways**
 - almost all Rust code is generic code and there's elided lifetime annotations everywhere
 
 
+
+### 5) 如果编译通过了，那么我标注的生命周期就是正确的
+
+**错误的推论**
+- Rust 对函数的生命周期标注省略规则总是对的
+- Rust 的借用检查器总是正确的，无论是技巧上还是语义上
+- Rust 比我更懂我程序的语义
 
 ### 5) if it compiles then my lifetime annotations are correct
 
@@ -330,6 +482,8 @@ then your code has generic elided lifetime annotations all over it.
 - Rust's lifetime elision rules for functions are always right
 - Rust's borrow checker is always right, technically _and semantically_
 - Rust knows more about the semantics of my program than I do
+
+让一个 Rust 程序通过编译但语义上不正确是有可能的。来看看这个例子：
 
 It's possible for a Rust program to be technically compilable but still semantically wrong. Take this for example:
 
@@ -357,6 +511,8 @@ fn main() {
 }
 ```
 
+是一个 byte 切片的迭代器，简洁起见，我这里省略了 Iterator trait 的具体实现。这看起来没什么问题，但如果我们想同时检查多个 byte 呢？
+
 `ByteIter` is an iterator that iterates over a slice of bytes. We're skipping the `Iterator` trait implementation for conciseness. It seems to work fine, but what if we want to check a couple bytes at a time?
 
 ```rust
@@ -369,6 +525,8 @@ fn main() {
     }
 }
 ```
+
+编译错误：
 
 Uh oh! Compile error:
 
@@ -384,7 +542,11 @@ error[E0499]: cannot borrow `bytes` as mutable more than once at a time
    |        ------ first borrow later used here
 ```
 
+如果你说可以通过逐 byte 拷贝来避免编译错误，那么确实。当迭代一个 byte 数组上时，我们的确可以通过拷贝每个 byte 来达成目的。但是如果我想要将  `ByteIter` 改写成一个泛型的切片迭代器，使得我们能够对任意 `&'a [T]` 进行迭代，而此时如果有一个 `T`，其 copy/clone 的代价十分昂贵，那么我们该怎么避免这种昂贵的操作呢？哦，我想我们不能，毕竟代码都通过编译了，那么生命周期注解肯定也是对的，对吧？
+
 I guess we can copy each byte. Copying is okay when we're working with bytes but if we turned `ByteIter` into a generic slice iterator that can iterate over any `&'a [T]` then we might want to use it in the future with types that may be very expensive or impossible to copy / clone. Oh well, I guess there's nothing we can do about that, the code compiles so the lifetime annotations must be right, right?
+
+错，事实上现有的生命周期就是 bug 的源头！这个错误的生命周期被省略掉了以至于难以被发现。现在让我们展开这些被省略掉的生命周期来暴露出这个问题。
 
 Nope, the current lifetime annotations are actually the source of the bug! It's particularly hard to spot because the buggy lifetime annotations are elided. Lets expand the elided lifetimes to get a clearer look at the problem:
 
@@ -406,6 +568,8 @@ impl<'a> ByteIter<'a> {
 }
 ```
 
+感觉好像没啥用，我还是搞不清楚问题出在哪。这里有个 Rust 专家才知道的小技巧：给你的生命周期注解起一个描述性的名字，让我们试一下：
+
 That didn't help at all. I'm still confused. Here's a hot tip that only Rust pros know: give your lifetime annotations descriptive names. Lets try again:
 
 ```rust
@@ -425,6 +589,8 @@ impl<'remainder> ByteIter<'remainder> {
     }
 }
 ```
+
+每个返回的 byte 都被标注为 `'mut_self`, 但是显然这些 byte 都源于 `'remainder`! 让我们来修复一下。
 
 Each returned byte is annotated with `'mut_self` but the bytes are clearly coming from `'remainder`! Lets fix it.
 
@@ -456,9 +622,15 @@ fn main() {
 }
 ```
 
+现在我们再回过头来看看我们上一版的实现，就能看出它是错的了，那么为什么 Rust 会编译通过呢？答案很简单：这是内存安全的。
+
 Now that we look back on the previous version of our program it was obviously wrong, so why did Rust compile it? The answer is simple: it was memory safe.
 
+Rust 借用检查器静态验证程序的内存安全（TODO）。即便生命周期注解有语义上的错误，Rust 也能编译通过程序，这样做给程序带来不必要的限制。
+
 The Rust borrow checker only cares about the lifetime annotations in a program to the extent it can use them to statically verify the memory safety of the program. Rust will happily compile programs even if the lifetime annotations have semantic errors, and the consequence of this is that the program becomes unnecessarily restrictive.
+
+这儿有一个和之前相反的例子：但是我们无意间用不必要的显式注解声明了一个受限的方法（TODO）
 
 Here's a quick example that's the opposite of the previous example: Rust's lifetime elision rules happen to be semantically correct in this instance but we unintentionally write a very restrictive method with our own unnecessary explicit lifetime annotations.
 
