@@ -652,6 +652,8 @@ fn main() {
 }
 ```
 
+如果我们有一个带 `'a` 泛型参数的结构体，我们几乎不可能去写一个带 `&'a mut self` 参数的方法。因为这相当于告诉 Rust “这个方法将独占借用该对象，直到对象生命周期结束”。实际上，这意味着 Rust 的借用检查器只会允许在该对象上调用至多一次 `some_method`, 此后该对象将一直被独占借用并会因此变得不再可用。这种用例极其罕见，但是因为这种代码能够通过编译，所以那些对生命周期还感到困惑的初学者们很容易写出这种 bug. 修复这种 bug 的方式是去除掉不必要的显式生命周期注解，让 Rust 生命周期省略规则来处理它：
+
 If we have some struct generic over `'a` we almost never want to write a method with a `&'a mut self` receiver. What we're communicating to Rust is _"this method will mutably borrow the struct for the entirety of the struct's lifetime"_. In practice this means Rust's borrow checker will only allow at most one call to `some_method` before the struct becomes permanently mutably borrowed and thus unusable. The use-cases for this are extremely rare but the code above is very easy for confused beginners to write and it compiles. The fix is to not add unnecessary explicit lifetime annotations and let Rust's lifetime elision rules handle it:
 
 ```rust
@@ -674,13 +676,33 @@ fn main() {
 }
 ```
 
+**关键点回顾**
+
+- Rust 生命周期省略规则并不保证在任何情况下都正确
+- 在程序的语义方面，Rust 并不比你更懂
+- 可以试试给你的生命周期注解起一个有意义的名字
+- 试着记住你在哪里添加了显式生命周期注解，以及为什么要加
+
 **Key Takeaways**
+
 - Rust's lifetime elision rules for functions are not always right for every situation
 - Rust does not know more about the semantics of your program than you do
 - give your lifetime annotations descriptive names
 - try to be mindful of where you place explicit lifetime annotations and why
 
 
+
+### 6) 装箱的 trait 对象不含生命周期注解
+
+之前我们讨论了 Rust _对函数_的生命周期省略规则。Rust 对 trait 对象也存在生命周期省略规则，它们是：
+
+- 如果 trait 对象被用作泛型类型的一个类型参数，那么 trait 对象的的生命周期约束依据容器的类型进行推导
+  - 若容器有唯一的生命周期约束，则将这个约束赋给 trait 对象
+  - 若容器不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
+- 如果上面不成立，那么
+  - 若 trait 定义时有且仅有一个生命周期约束，则将这个约束赋给 trait 对象
+  - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象(TODO)
+  - 若 trait 没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static`
 
 ### 6) boxed trait objects don't have lifetimes
 
