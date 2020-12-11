@@ -2,6 +2,25 @@
 
 _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
 
+**目录**
+- [引言](#引言)
+- [误解](#误解)
+    - [1) `T` 只包含所有权类型](#1-t-只包含所有权类型)
+    - [2) 如果 `T: 'static` 那么 `T` 直到程序结束为止都一定是有效的](#2-如果-t-static-那么-t-直到程序结束为止都一定是有效的)
+    - [3) `&'a T` 和 `T: 'a` 是一回事](#3-a-t-和-t-a-是一回事)
+    - [4) 我的代码里不含泛型也不含生命周期注解](#4-我的代码里不含泛型也不含生命周期注解)
+    - [5) 如果编译通过了，那么我标注的生命周期就是正确的](#5-如果编译通过了那么我标注的生命周期就是正确的)
+    - [6) 装箱的 trait 对象不含生命周期注解](#6-装箱的-trait-对象不含生命周期注解)
+    - [7) 编译报错的信息会告诉我怎样修复我的程序](#7-编译报错的信息会告诉我怎样修复我的程序)
+    - [8) lifetimes can grow and shrink at run-time](#8-lifetimes-can-grow-and-shrink-at-run-time)
+    - [9) downgrading mut refs to shared refs is safe](#9-downgrading-mut-refs-to-shared-refs-is-safe)
+    - [10) closures follow the same lifetime elision rules as functions](#10-closures-follow-the-same-lifetime-elision-rules-as-functions)
+    - [11) `'static` refs can always be coerced into `'a` refs](#11-static-refs-can-always-be-coerced-into-a-refs)
+- [Conclusion](#conclusion)
+- [Discuss](#discuss)
+- [Notifications](#notifications)
+- [Further Reading](#further-reading)
+
 **Table of Contents**
 - [Intro](#intro)
 - [The Misconceptions](#the-misconceptions)
@@ -472,7 +491,7 @@ then your code has generic elided lifetime annotations all over it.
 ### 5) 如果编译通过了，那么我标注的生命周期就是正确的
 
 **错误的推论**
-- Rust 对函数的生命周期标注省略规则总是对的
+- Rust 对函数的生命周期省略规则总是对的
 - Rust 的借用检查器总是正确的，无论是技巧上还是语义上
 - Rust 比我更懂我程序的语义
 
@@ -622,7 +641,7 @@ fn main() {
 }
 ```
 
-现在我们再回过头来看看我们上一版的实现，就能看出它是错的了，那么为什么 Rust 会编译通过呢？答案很简单：这是内存安全的。
+现在我们再回过头来看看我们上一版的实现，就能看出它是错的了，那么为什么 Rust 会编译通过呢？答案很简单：因为这是内存安全的。
 
 Now that we look back on the previous version of our program it was obviously wrong, so why did Rust compile it? The answer is simple: it was memory safe.
 
@@ -678,8 +697,8 @@ fn main() {
 
 **关键点回顾**
 
-- Rust 生命周期省略规则并不保证在任何情况下都正确
-- 在程序的语义方面，Rust 并不比你更懂
+- Rust 对函数的生命周期省略规则并不保证在任何情况下都正确
+- 在程序的语义方面，Rust 并不比你懂
 - 可以试试给你的生命周期注解起一个有意义的名字
 - 试着记住你在哪里添加了显式生命周期注解，以及为什么要加
 
@@ -714,6 +733,8 @@ Earlier we discussed Rust's lifetime elision rules _for functions_. Rust also ha
     - if the trait is defined with a single lifetime bound then that bound is used
     - if `'static` is used for any lifetime bound then `'static` is used
     - if the trait has no lifetime bounds then its lifetime is inferred in expressions and is `'static` outside of expressions
+
+以上这些听起来特别复杂，但是可以简单地总结为一句话“一个 trait 对象的生命周期约束从上下文推导而出。”看下面这些例子后，我们会看到生命周期约束的推导其实很符合直觉，因此我们没必要去记忆上面的规则：
 
 All of that sounds super complicated but can be simply summarized as _"a trait object's lifetime bound is inferred from context."_ After looking at a handful of examples we'll see the lifetime bound inferences are pretty intuitive so we don't have to memorize the formal rules:
 
@@ -755,6 +776,8 @@ impl<'a> dyn GenericTrait<'a> {}
 impl<'a> dyn GenericTrait<'a> + 'a {}
 ```
 
+一个实现了 trait 的具体类型可以被引用，因此它们也会有生命周期约束，同样其对应的 trait 对象也有生命周期约束。你也可以直接对引用实现 trait, 引用显然是有生命周期约束的：
+
 Concrete types which implement traits can have references and thus they also have lifetime bounds, and so their corresponding trait objects have lifetime bounds. Also you can implement traits directly for references which obviously have lifetime bounds:
 
 ```rust
@@ -767,6 +790,8 @@ impl Trait for Struct {}
 impl Trait for &Struct {} // impl Trait directly on a ref type
 impl<'a, T> Trait for Ref<'a, T> {} // impl Trait on a type containing refs
 ```
+
+总之，这个知识点值得反复理解，新手在重构一个使用 trait 对象的函数到一个泛型的函数或者反过来时，常常会因为这个知识点而感到困惑。来看看这个示例程序：
 
 Anyway, this is worth going over because it often confuses beginners when they refactor a function from using trait objects to generics or vice versa. Take this program for example:
 
@@ -786,6 +811,8 @@ fn static_thread_print<T: Display + Send>(t: T) {
 }
 ```
 
+这里编译器报错：
+
 It throws this compile error:
 
 ```rust
@@ -803,6 +830,8 @@ note: ...so that the type `[closure@src/lib.rs:10:24: 12:6 t:T]` will meet its r
 10 |     std::thread::spawn(move || {
    |     ^^^^^^^^^^^^^^^^^^
 ```
+
+很好，编译器告诉了我们怎样修复这个问题，让我们修复一下。
 
 Okay great, the compiler tells us how to fix the issue so lets fix the issue.
 
@@ -822,6 +851,8 @@ fn static_thread_print<T: Display + Send + 'static>(t: T) {
 }
 ```
 
+现在它编译通过了，但是这两个函数对比起来看起来挺奇怪的，为什么第二个函数要求 `T` 满足 `'static` 约束而第一个函数不用呢？这是个刁钻的问题。事实上，通过生命周期省略规则，Rust 自动在第一个函数里推导并添加了一个 `'static` 约束，所以其实两个函数都含有 `'static` 约束。Rust 编译器实际看到的是这个样子的：
+
 It compiles now but these two functions look awkward next to each other, why does the second function require a `'static` bound on `T` where the first function doesn't? That's a trick question. Using the lifetime elision rules Rust automatically infers a `'static` bound in the first function so both actually have `'static` bounds. This is what the Rust compiler sees:
 
 ```rust
@@ -840,16 +871,30 @@ fn static_thread_print<T: Display + Send + 'static>(t: T) {
 }
 ```
 
+关键点回顾
+
+- 所有 trait 对象都含有自动推导的生命周期
+
 **Key Takeaways**
+
 - all trait objects have some inferred default lifetime bounds
 
 
+
+### 7) 编译器的报错信息会告诉我怎样修复我的程序
+
+**错误的推论**
+
+- Rust 对 trait 对象的生命周期省略规则总是正确的
+- Rust 比我更懂我程序的语义
 
 ### 7) compiler error messages will tell me how to fix my program
 
 **Misconception Corollaries**
 - Rust's lifetime elision rules for trait objects are always right
 - Rust knows more about the semantics of my program than I do
+
+这个误解是前两个误解的结合，来看一个例子：
 
 This misconception is the previous 2 misconceptions combined into one example:
 
@@ -860,6 +905,8 @@ fn box_displayable<T: Display>(t: T) -> Box<dyn Display> {
     Box::new(t)
 }
 ```
+
+报错如下：
 
 Throws this error:
 
@@ -879,6 +926,8 @@ note: ...so that the type `T` will meet its required lifetime bounds
   |     ^^^^^^^^^^^
 ```
 
+好，让我们按照编译器的提示进行修复。这里我们先忽略一个事实：返回值中装箱的 trait 对象有一个自动推导的 `'static` 约束，而编译器是基于这个没有显式说明的事实给出的修复建议。
+
 Okay, let's fix it how the compiler is telling us to fix it, nevermind the fact that it's automatically inferring a `'static` lifetime bound for our boxed trait object without telling us and its recommended fix is based on that unstated fact:
 
 ```rust
@@ -888,6 +937,8 @@ fn box_displayable<T: Display + 'static>(t: T) -> Box<dyn Display> {
     Box::new(t)
 }
 ```
+
+现在可以编译通过了，但这真的是我们想要的吗？可能是，也可能不是，编译器并没有提到其他修复方案，但下面这个也是一个合适的修复方案。
 
 So the program compiles now... but is this what we actually want? Probably, but maybe not. The compiler didn't mention any other fixes but this would have also been appropriate:
 
@@ -899,6 +950,8 @@ fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> {
 }
 ```
 
+这个函数所能接受的实际参数比前一个函数多了不少！这个函数是不是更好？不一定必要，这取决于我们对程序的要求与约束。上面这个例子有点抽象，所以让我们看一个更简单明了的例子：
+
 This function accepts all the same arguments as the previous version plus a lot more! Does that make it better? Not necessarily, it depends on the requirements and constraints of our program. This example is a bit abstract so lets take a look at a simpler and more obvious case:
 
 ```rust
@@ -906,6 +959,8 @@ fn return_first(a: &str, b: &str) -> &str {
     a
 }
 ```
+
+报错：
 
 Throws:
 
@@ -923,6 +978,8 @@ help: consider introducing a named lifetime parameter
   |                ^^^^    ^^^^^^^     ^^^^^^^     ^^^
 ```
 
+这个错误信息推荐我们给所有输入输出都标注上同样的生命周期注解。如果我们这么做了，那么程序将通过编译，但是这样写出的函数过度限制了返回类型。我们真正想要的是这个：
+
 The error message recommends annotating both inputs and the output with the same lifetime. If we did this our program would compile but this function would overly-constrain the return type. What we actually want is this:
 
 ```rust
@@ -930,6 +987,11 @@ fn return_first<'a>(a: &'a str, b: &str) -> &'a str {
     a
 }
 ```
+
+**关键点回顾**
+- Rust 对 trait 对象的生命周期省略规则并不保证在任何情况下都正确
+- 在程序的语义方面，Rust 并不比你懂
+- Rust 编译错误的提示信息所提出的修复方案并不一定能满足你对程序的需求
 
 **Key Takeaways**
 - Rust's lifetime elision rules for trait objects are not always right for every situation
