@@ -12,14 +12,14 @@ _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
     - [5) 如果编译通过了，那么我标注的生命周期就是正确的](#5-如果编译通过了那么我标注的生命周期就是正确的)
     - [6) 装箱的 trait 对象不含生命周期注解](#6-装箱的-trait-对象不含生命周期注解)
     - [7) 编译报错的信息会告诉我怎样修复我的程序](#7-编译报错的信息会告诉我怎样修复我的程序)
-    - [8) lifetimes can grow and shrink at run-time](#8-lifetimes-can-grow-and-shrink-at-run-time)
-    - [9) downgrading mut refs to shared refs is safe](#9-downgrading-mut-refs-to-shared-refs-is-safe)
-    - [10) closures follow the same lifetime elision rules as functions](#10-closures-follow-the-same-lifetime-elision-rules-as-functions)
-    - [11) `'static` refs can always be coerced into `'a` refs](#11-static-refs-can-always-be-coerced-into-a-refs)
-- [Conclusion](#conclusion)
-- [Discuss](#discuss)
-- [Notifications](#notifications)
-- [Further Reading](#further-reading)
+    - [8) 生命周期可以在运行时动态变长或变短](#8-生命周期可以在运行时动态变长或变短)
+    - [9) 将独占引用降级为共享引用是 safe 的](#9-将独占引用降级为共享引用是-safe-的)
+    - [10) 对闭包的生命周期省略规则和函数一样](#10-对闭包的生命周期省略规则和函数一样)
+    - [11) `'static` 引用总能被强制转换为 `'a` 引用](#11-static-引用总能被强制转换为-a-引用)
+- [总结](#总结)
+- [讨论](#讨论)
+- [通知](#通知)
+- [拓展阅读](#拓展阅读)
 
 **Table of Contents**
 - [Intro](#intro)
@@ -414,7 +414,7 @@ This comforting misconception is kept alive thanks to Rust's lifetime elision ru
 
 这里有不少值得讲的东西，让我们来看一些例子：
 
-That's a lot to take in so lets look at some examples:
+That's a lot to take in so let's look at some examples:
 
 ```rust
 // elided
@@ -561,13 +561,13 @@ error[E0499]: cannot borrow `bytes` as mutable more than once at a time
    |        ------ first borrow later used here
 ```
 
-如果你说可以通过逐 byte 拷贝来避免编译错误，那么确实。当迭代一个 byte 数组上时，我们的确可以通过拷贝每个 byte 来达成目的。但是如果我想要将  `ByteIter` 改写成一个泛型的切片迭代器，使得我们能够对任意 `&'a [T]` 进行迭代，而此时如果有一个 `T`，其 copy/clone 的代价十分昂贵，那么我们该怎么避免这种昂贵的操作呢？哦，我想我们不能，毕竟代码都通过编译了，那么生命周期注解肯定也是对的，对吧？
+如果你说可以通过逐 byte 拷贝来避免编译错误，那么确实。当迭代一个 byte 数组上时，我们的确可以通过拷贝每个 byte 来达成目的。但是如果我想要将  `ByteIter` 改写成一个泛型的切片迭代器，使得我们能够对任意 `&'a [T]` 进行迭代，而此时如果有一个 `T`，其 copy 和 clone 的代价十分昂贵，那么我们该怎么避免这种昂贵的操作呢？哦，我想我们不能，毕竟代码都通过编译了，那么生命周期注解肯定也是对的，对吧？
 
-I guess we can copy each byte. Copying is okay when we're working with bytes but if we turned `ByteIter` into a generic slice iterator that can iterate over any `&'a [T]` then we might want to use it in the future with types that may be very expensive or impossible to copy / clone. Oh well, I guess there's nothing we can do about that, the code compiles so the lifetime annotations must be right, right?
+I guess we can copy each byte. Copying is okay when we're working with bytes but if we turned `ByteIter` into a generic slice iterator that can iterate over any `&'a [T]` then we might want to use it in the future with types that may be very expensive or impossible to copy and clone. Oh well, I guess there's nothing we can do about that, the code compiles so the lifetime annotations must be right, right?
 
 错，事实上现有的生命周期就是 bug 的源头！这个错误的生命周期被省略掉了以至于难以被发现。现在让我们展开这些被省略掉的生命周期来暴露出这个问题。
 
-Nope, the current lifetime annotations are actually the source of the bug! It's particularly hard to spot because the buggy lifetime annotations are elided. Lets expand the elided lifetimes to get a clearer look at the problem:
+Nope, the current lifetime annotations are actually the source of the bug! It's particularly hard to spot because the buggy lifetime annotations are elided. Let's expand the elided lifetimes to get a clearer look at the problem:
 
 ```rust
 struct ByteIter<'a> {
@@ -589,7 +589,7 @@ impl<'a> ByteIter<'a> {
 
 感觉好像没啥用，我还是搞不清楚问题出在哪。这里有个 Rust 专家才知道的小技巧：给你的生命周期注解起一个描述性的名字，让我们试一下：
 
-That didn't help at all. I'm still confused. Here's a hot tip that only Rust pros know: give your lifetime annotations descriptive names. Lets try again:
+That didn't help at all. I'm still confused. Here's a hot tip that only Rust pros know: give your lifetime annotations descriptive names. Let's try again:
 
 ```rust
 struct ByteIter<'remainder> {
@@ -611,7 +611,7 @@ impl<'remainder> ByteIter<'remainder> {
 
 每个返回的 byte 都被标注为 `'mut_self`, 但是显然这些 byte 都源于 `'remainder`! 让我们来修复一下。
 
-Each returned byte is annotated with `'mut_self` but the bytes are clearly coming from `'remainder`! Lets fix it.
+Each returned byte is annotated with `'mut_self` but the bytes are clearly coming from `'remainder`! Let's fix it.
 
 ```rust
 struct ByteIter<'remainder> {
@@ -833,7 +833,7 @@ note: ...so that the type `[closure@src/lib.rs:10:24: 12:6 t:T]` will meet its r
 
 很好，编译器告诉了我们怎样修复这个问题，让我们修复一下。
 
-Okay great, the compiler tells us how to fix the issue so lets fix the issue.
+Okay great, the compiler tells us how to fix the issue so let's fix the issue.
 
 ```rust
 use std::fmt::Display;
@@ -872,11 +872,9 @@ fn static_thread_print<T: Display + Send + 'static>(t: T) {
 ```
 
 关键点回顾
-
 - 所有 trait 对象都含有自动推导的生命周期
 
 **Key Takeaways**
-
 - all trait objects have some inferred default lifetime bounds
 
 
@@ -884,7 +882,6 @@ fn static_thread_print<T: Display + Send + 'static>(t: T) {
 ### 7) 编译器的报错信息会告诉我怎样修复我的程序
 
 **错误的推论**
-
 - Rust 对 trait 对象的生命周期省略规则总是正确的
 - Rust 比我更懂我程序的语义
 
@@ -952,7 +949,7 @@ fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> {
 
 这个函数所能接受的实际参数比前一个函数多了不少！这个函数是不是更好？不一定必要，这取决于我们对程序的要求与约束。上面这个例子有点抽象，所以让我们看一个更简单明了的例子：
 
-This function accepts all the same arguments as the previous version plus a lot more! Does that make it better? Not necessarily, it depends on the requirements and constraints of our program. This example is a bit abstract so lets take a look at a simpler and more obvious case:
+This function accepts all the same arguments as the previous version plus a lot more! Does that make it better? Not necessarily, it depends on the requirements and constraints of our program. This example is a bit abstract so let's take a look at a simpler and more obvious case:
 
 ```rust
 fn return_first(a: &str, b: &str) -> &str {
@@ -1000,11 +997,19 @@ fn return_first<'a>(a: &'a str, b: &str) -> &'a str {
 
 
 
+### 8) 生命周期可以在运行时动态变长或变短
+
+**错误的推论**
+- container types can swap references at run-time to change their lifetime
+- Rust borrow checker does advanced control flow analysis
+
 ### 8) lifetimes can grow and shrink at run-time
 
 **Misconception Corollaries**
 - container types can swap references at run-time to change their lifetime
 - Rust borrow checker does advanced control flow analysis
+
+这个编译不通过：
 
 This does not compile:
 
@@ -1082,12 +1087,22 @@ fn main() {
 
 Lifetimes have to be statically verified at compile-time and the Rust borrow checker only does very basic control flow analysis, so it assumes every block in an `if-else` statement and every match arm in a `match` statement can be taken and then chooses the shortest possible lifetime for the variable. Once a variable is bounded by a lifetime it is bounded by that lifetime _forever_. The lifetime of a variable can only shrink, and all the shrinkage is determined at compile-time.
 
+**关键点回顾**
+- (TODO)
+- (TODO)
+- (TODO)
+
 **Key Takeaways**
 - lifetimes are statically verified at compile-time
 - lifetimes cannot grow or shrink or change in any way at run-time
 - Rust borrow checker will always choose the shortest possible lifetime for a variable assuming all code paths can be taken
 
 
+
+### 9) 将独占引用降级为共享引用是 safe 的
+
+**错误的推论**
+- (TODO)
 
 ### 9) downgrading mut refs to shared refs is safe
 
@@ -1230,11 +1245,17 @@ fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<Playe
 
 Kinda awkward and clunky but this is the sacrifice we make at the Altar of Memory Safety.
 
+**关键点回顾**
+- (TODO)
+- (TODO)
+
 **Key Takeaways**
 - try not to re-borrow mut refs as shared refs, or you're gonna have a bad time
 - re-borrowing a mut ref doesn't end its lifetime, even if the ref is dropped
 
 
+
+### 10) 对闭包的生命周期省略规则和函数一样
 
 ### 10) closures follow the same lifetime elision rules as functions
 
@@ -1320,9 +1341,14 @@ As I'm sure you've already noticed from the examples above, when closure types a
 
 There's no real lesson or insight to be had here, it just is what it is.
 
+**关键点回顾**
+- 每个语言都有陷阱 🤷
+
 **Key Takeaways**
 - every language has gotchas 🤷
 
+
+### 11) `'static` 引用总能被强制转换为 `'a` 引用
 
 ### 11) `'static` refs can always be coerced into `'a` refs
 
@@ -1333,7 +1359,7 @@ fn get_str<'a>() -> &'a str; // generic version
 fn get_str() -> &'static str; // 'static version
 ```
 
-Several readers contacted me to ask if there was a practical difference between the two. At first I wasn't sure but after some investigation it unforuntately turns out that the answer is yes, there is a practical difference between these two functions.
+Several readers contacted me to ask if there was a practical difference between the two. At first I wasn't sure but after some investigation it unfortunately turns out that the answer is yes, there is a practical difference between these two functions.
 
 So ordinarily, when working with values, we can use a `'static` ref in place of an `'a` ref because Rust automatically coerces `'static` refs into `'a` refs. Intuitively this makes sense, since using a ref with a long lifetime where only a short lifetime is required will never cause any memory safety issues. The program below compiles as expected:
 
@@ -1412,10 +1438,44 @@ error[E0597]: `some_string` does not live long enough
 
 It's debatable whether or not this is a Rust Gotcha, since it's not a simple straight-forward case of coercing a `&'static str` into a `&'a str` but coercing a `for<T> Fn() -> &'static T` into a `for<'a, T> Fn() -> &'a T`. The former is a coercion between values and the latter is a coercion between types.
 
+**关键点回顾**
+- (TODO)
+
 **Key Takeaways**
 - functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
 
 
+
+## 总结
+
+- `T` is a superset of both `&T` and `&mut T`
+- `&T` and `&mut T` are disjoint sets
+- `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_
+- if `T: 'static` then `T` can be a borrowed type with a `'static` lifetime _or_ an owned type
+- since `T: 'static` includes owned types that means `T`
+  - can be dynamically allocated at run-time
+  - does not have to be valid for the entire program
+  - can be safely and freely mutated
+  - can be dynamically dropped at run-time
+  - can have lifetimes of different durations
+- `T: 'a` is more general and more flexible than `&'a T`
+- `T: 'a` accepts owned types, owned types which contain references, and references
+- `&'a T` only accepts references
+- if `T: 'static` then `T: 'a` since `'static` >= `'a` for all `'a`
+- almost all Rust code is generic code and there's elided lifetime annotations everywhere
+- Rust's lifetime elision rules are not always right for every situation
+- Rust does not know more about the semantics of your program than you do
+- give your lifetime annotations descriptive names
+- try to be mindful of where you place explicit lifetime annotations and why
+- all trait objects have some inferred default lifetime bounds
+- Rust compiler error messages suggest fixes which will make your program compile which is not that same as fixes which will make you program compile _and_ best suit the requirements of your program
+- lifetimes are statically verified at compile-time
+- lifetimes cannot grow or shrink or change in any way at run-time
+- Rust borrow checker will always choose the shortest possible lifetime for a variable assuming all code paths can be taken
+- try not to re-borrow mut refs as shared refs, or you're gonna have a bad time
+- re-borrowing a mut ref doesn't end its lifetime, even if the ref is dropped
+- every language has gotchas 🤷
+- functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
 
 ## Conclusion
 
@@ -1450,6 +1510,16 @@ It's debatable whether or not this is a Rust Gotcha, since it's not a simple str
 
 
 
+## 讨论
+
+(TODO)
+- [learnrust subreddit](https://www.reddit.com/r/learnrust/comments/gmrcrq/common_rust_lifetime_misconceptions/)
+- [official Rust users forum](https://users.rust-lang.org/t/blog-post-common-rust-lifetime-misconceptions/42950)
+- [Twitter](https://twitter.com/pretzelhammer/status/1263505856903163910)
+- [rust subreddit](https://www.reddit.com/r/rust/comments/golrsx/common_rust_lifetime_misconceptions/)
+- [Hackernews](https://news.ycombinator.com/item?id=23279731)
+- [Github](https://github.com/pretzelhammer/rust-blog/discussions)
+
 ## Discuss
 
 Discuss this article on
@@ -1458,8 +1528,15 @@ Discuss this article on
 - [Twitter](https://twitter.com/pretzelhammer/status/1263505856903163910)
 - [rust subreddit](https://www.reddit.com/r/rust/comments/golrsx/common_rust_lifetime_misconceptions/)
 - [Hackernews](https://news.ycombinator.com/item?id=23279731)
+- [Github](https://github.com/pretzelhammer/rust-blog/discussions)
 
 
+
+## 通知
+
+(TODO)
+- [Following pretzelhammer on Twitter](https://twitter.com/pretzelhammer) or
+- Watching this repo's releases (click on `Watch` dropdown and select `Releases only`)
 
 ## Notifications
 
@@ -1469,7 +1546,14 @@ Get notified when the next blog post get published by
 
 
 
+## 拓展阅读
+
+- [Sizedness in Rust](./sizedness-in-rust.md)
+- [Learning Rust in 2020](./learning-rust-in-2020.md)
+- [Learn Assembly with Entirely Too Many Brainfuck Compilers](./too-many-brainfuck-compilers.md)
+
 ## Further Reading
 
 - [Sizedness in Rust](./sizedness-in-rust.md)
 - [Learning Rust in 2020](./learning-rust-in-2020.md)
+- [Learn Assembly with Entirely Too Many Brainfuck Compilers](./too-many-brainfuck-compilers.md)
