@@ -237,7 +237,7 @@ Regarding `static` variables
 
 The `'static` lifetime was probably named after the default lifetime of `static` variables, right? So it makes sense that the `'static` lifetime has to follow all the same rules, right?
 
-确实，但_带有_ `'static` 生命周期注解的类型和一个被 `'static` _约束_的类型是不一样的。后者可以于运行时被动态分配，能被安全自由地修改，也可以被 drop, 还能存活任意的时长。
+确实，但 _带有_ `'static` 生命周期注解的类型和一个被 `'static` _约束_ 的类型是不一样的。后者可以于运行时被动态分配，能被安全自由地修改，也可以被 drop, 还能存活任意的时长。
 
 Well yes, but a type _with_ a `'static` lifetime is different from a type _bounded by_ a `'static` lifetime. The latter can be dynamically allocated at run-time, can be safely and freely mutated, can be dropped, and can live for arbitrary durations.
 
@@ -245,7 +245,7 @@ Well yes, but a type _with_ a `'static` lifetime is different from a type _bound
 
 It's important at this point to distinguish `&'static T` from `T: 'static`.
 
-`&'static T` 是一个指向 `T` 的不可变引用，其中 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。这只有在 `T` 自身不可变且保证_在引用创建后_不会被 move 时才有可能。`T` 并不需要在编译时创建。 我们可以以内存泄漏为代价，在运行时动态创建随机数据，并返回其 `'static` 引用，比如：
+`&'static T` 是一个指向 `T` 的不可变引用，其中 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。这只有在 `T` 自身不可变且保证 _在引用创建后_ 不会被 move 时才有可能。`T` 并不需要在编译时创建。 我们可以以内存泄漏为代价，在运行时动态创建随机数据，并返回其 `'static` 引用，比如：
 
 `&'static T` is an immutable reference to some `T` that can be safely held indefinitely long, including up until the end of the program. This is only possible if `T` itself is immutable and does not move _after the reference was created_. `T` does not need to be created at compile-time. It's possible to generate random dynamically allocated data at run-time and return `'static` references to it at the cost of leaking memory, e.g.
 
@@ -260,7 +260,7 @@ fn rand_str_generator() -> &'static str {
 }
 ```
 
-`T: 'static` 是指 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。 `T: 'static` 在包括了全部 `&'static T` 的同时，还包括了全部所有权类型， 比如 `String`, `Vec` 等等。 数据的所有者保证，只要自身还持有数据的所有权，数据就不会失效，因此所有者能够安全地无期限地持有其数据，甚至可以直到程序结束。`T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_而非_“`T` 有着 `'static` 生命周期”_。 一个程序可以帮助阐述这些概念：
+`T: 'static` 是指 `T` 可以被安全地无期限地持有，甚至可以直到程序结束。 `T: 'static` 在包括了全部 `&'static T` 的同时，还包括了全部所有权类型， 比如 `String`, `Vec` 等等。 数据的所有者保证，只要自身还持有数据的所有权，数据就不会失效，因此所有者能够安全地无期限地持有其数据，甚至可以直到程序结束。`T: 'static` 应当视为 _“`T` 满足 `'static` 生命周期约束”_ 而非 _“`T` 有着 `'static` 生命周期”_。 一个程序可以帮助阐述这些概念：
 
 `T: 'static` is some `T` that can be safely held indefinitely long, including up until the end of the program. `T: 'static` includes all `&'static T` however it also includes all owned types, like `String`, `Vec`, etc. The owner of some data is guaranteed that data will never get invalidated as long as the owner holds onto it, therefore the owner can safely hold onto the data indefinitely long, including up until the end of the program. `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_ not _"`T` has a `'static` lifetime"_. A program to help illustrate these concepts:
 
@@ -303,7 +303,7 @@ fn main() {
 
 **关键点回顾**
 - `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
-- 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型_或_是一个所有权类型
+- 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型 _或_ 是一个所有权类型
 - 因为 `T: 'static` 包括了所有权类型，所以 `T`
     - 可以在运行时动态分配
     - 不需要在整个程序运行期间都有效
@@ -713,7 +713,7 @@ fn main() {
 
 ### 6) 装箱的 trait 对象不含生命周期注解
 
-之前我们讨论了 Rust _对函数_的生命周期省略规则。Rust 对 trait 对象也存在生命周期省略规则，它们是：
+之前我们讨论了 Rust _对函数_ 的生命周期省略规则。Rust 对 trait 对象也存在生命周期省略规则，它们是：
 
 - 如果 trait 对象被用作泛型类型的一个类型参数，那么 trait 对象的的生命周期约束依据容器的类型进行推导
   - 若容器有唯一的生命周期约束，则将这个约束赋给 trait 对象
@@ -1000,8 +1000,8 @@ fn return_first<'a>(a: &'a str, b: &str) -> &'a str {
 ### 8) 生命周期可以在运行时动态变长或变短
 
 **错误的推论**
-- container types can swap references at run-time to change their lifetime
-- Rust borrow checker does advanced control flow analysis
+- 容器类可以在运行时交换其内部的引用，从而改变自身的生命周期
+- Rust 借用检查器能进行高级的控制流分析
 
 ### 8) lifetimes can grow and shrink at run-time
 
@@ -1039,6 +1039,7 @@ fn main() {
     assert_eq!(has.lifetime, "long");
 }
 ```
+报错：
 
 It throws:
 
@@ -1054,6 +1055,8 @@ error[E0597]: `short` does not live long enough
 16 |     assert_eq!(has.lifetime, "long");
    |     --------------------------------- borrow later used here
 ```
+
+下面这个还是报错，报错信息也和上面一样：
 
 This also does not compile, throws the exact same error as above:
 
@@ -1085,12 +1088,14 @@ fn main() {
 }
 ```
 
+生命周期必须在编译时被静态确定，而且 Rust 借用检查器只会做基本的控制流分析，所以它假设每个 `if-else` 块和 `match` 块的每个分支都能被执行，然后选出一个最短的生命周期赋给块中的变量。一旦一个变量被一个生命周期约束了，那么它将 _永远_ 被这个生命周期所约束。一个变量的生命周期只能缩短，而且所有的缩短时机都在编译时确定。
+
 Lifetimes have to be statically verified at compile-time and the Rust borrow checker only does very basic control flow analysis, so it assumes every block in an `if-else` statement and every match arm in a `match` statement can be taken and then chooses the shortest possible lifetime for the variable. Once a variable is bounded by a lifetime it is bounded by that lifetime _forever_. The lifetime of a variable can only shrink, and all the shrinkage is determined at compile-time.
 
 **关键点回顾**
-- (TODO)
-- (TODO)
-- (TODO)
+- 生命周期在编译时被静态确定
+- 生命周期在运行时不能被改变
+- Rust 借用检查器假设所有代码路径都能被执行，所以总是选择尽可能短的生命周期赋给变量。
 
 **Key Takeaways**
 - lifetimes are statically verified at compile-time
@@ -1102,12 +1107,14 @@ Lifetimes have to be statically verified at compile-time and the Rust borrow che
 ### 9) 将独占引用降级为共享引用是 safe 的
 
 **错误的推论**
-- (TODO)
+- 通过重借用引用内部的数据，能抹掉其原有的生命周期，然后赋一个新的上去
 
 ### 9) downgrading mut refs to shared refs is safe
 
 **Misconception Corollaries**
 - re-borrowing a reference ends its lifetime and starts a new one
+
+你可以将一个独占引用作为参数传给一个接收共享引用的函数，因为 Rust 将隐式地重借用独占引用内部的数据，生成一个共享引用：
 
 You can pass a mut ref to a function expecting a shared ref because Rust will implicitly re-borrow the mut ref as immutable:
 
@@ -1121,6 +1128,8 @@ fn main() {
 }
 ```
 
+这在直觉上是合理的，因为将一个独占引用转换为共享引用显然是无害的，对吗？令人讶异的是，这并不对，下面的这段程序不能通过编译：
+
 Intuitively this makes sense, since there's no harm in re-borrowing a mut ref as immutable, right? Surprisingly no, as the program below does not compile:
 
 ```rust
@@ -1131,6 +1140,8 @@ fn main() {
     dbg!(b, c); // compile error
 }
 ```
+
+报错如下：
 
 Throws this error:
 
@@ -1145,6 +1156,8 @@ error[E0502]: cannot borrow `a` as immutable because it is also borrowed as muta
 5 |     dbg!(b, c);
   |          - mutable borrow later used here
 ```
+
+代码里确实有一个独占引用，但是它立即重借用变成了一个共享引用，然后自身就被 drop 掉了。但是为什么 Rust 好像把这个重借用出来的共享引用看作是有一个独占的生命周期呢？上面这个例子中，允许独占引用直接降级为共享引用是没有问题的，但是这个允许确实会导致潜在的内存安全问题。
 
 A mutable borrow does occur, but it's immediately and unconditionally re-borrowed as immutable and then dropped. Why is Rust treating the immutable re-borrow as if it still has the mut ref's exclusive lifetime? While there's no issue in the particular example above, allowing the ability to downgrade mut refs to shared refs does indeed introduce potential memory safety issues:
 
@@ -1178,6 +1191,9 @@ fn main() {
 }
 ```
 
+这里的关键点在于，你在重借用一个独占引用为共享引用时，就已经落入了一个陷阱：为了保证重借用得到的共享引用在其生命周期内有效，被重借用的独占引用也必须保证在这段时期有效，这延长了独占引用的生命周期！哪怕独占引用自身已经被 drop 掉了，但独占引用的生命周期却一直延续到共享引用的生命周期结束。
+使用重借用得到的共享引用是很难受的，因为它明明是一个共享引用但是却不能和其他共享引用同时共存。重借用得到的共享引用有着独占引用和共享引用的缺点，却没有二者的优点。我认为重借用一个独占引用为共享引用的行为应当被视为 Rust 的一种反模式。知道这种反模式是很重要的，当你看到这样的代码时，你就能轻易地发现错误了：
+
 The point here is that when you re-borrow a mut ref as a shared ref you don't get that shared ref without a big gotcha: it extends the mut ref's lifetime for the duration of the re-borrow even if the mut ref itself is dropped. Using the re-borrowed shared ref is very difficult because it's immutable but it can't overlap with any other shared refs. The re-borrowed shared ref has all the cons of a mut ref and all the cons of a shared ref and has the pros of neither. I believe re-borrowing a mut ref as a shared ref should be considered a Rust anti-pattern. Being aware of this anti-pattern is important so that you can easily spot it when you see code like this:
 
 ```rust
@@ -1194,6 +1210,8 @@ impl Struct {
     fn other_method(&mut self) -> &T;
 }
 ```
+
+尽管你可以在函数和方法的声明里避免重借用，但是由于 Rust 会自动做隐式重借用，所以很容易无意识地遇到这种情况。
 
 Even if you avoid re-borrows in function and method signatures Rust still does automatic implicit re-borrows so it's easy to bump into this problem without realizing it like so:
 
@@ -1216,6 +1234,8 @@ fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<Playe
     dbg!(player_a, player_b); // compile error
 }
 ```
+
+上面这段代码会编译失败。这里 `or_default()` 会返回一个 `&mut Player`，但是由于我们添加了一个显式的类型标注，它会被隐式重借用成 `&Player`。而为了达成我们真正的目的，我们不得不这样做：
 
 The above fails to compile. `or_default()` returns a `&mut Player` which we're implicitly re-borrowing as `&Player` because of our explicit type annotations. To do what we want we have to:
 
@@ -1243,11 +1263,13 @@ fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<Playe
 }
 ```
 
+难用，而且很蠢，但这是我们为了内存安全这一信条所做出的牺牲。
+
 Kinda awkward and clunky but this is the sacrifice we make at the Altar of Memory Safety.
 
 **关键点回顾**
-- (TODO)
-- (TODO)
+- 尽量避免重借用一个独占引用为共享引用，不然你会遇到很多麻烦
+- 重借用一个独占引用并不会结束其生命周期，哪怕它自身已经被 drop 掉了
 
 **Key Takeaways**
 - try not to re-borrow mut refs as shared refs, or you're gonna have a bad time
@@ -1259,7 +1281,11 @@ Kinda awkward and clunky but this is the sacrifice we make at the Altar of Memor
 
 ### 10) closures follow the same lifetime elision rules as functions
 
+这更像是 Rust 的陷阱而非误解
+
 This is more of a Rust Gotcha than a misconception.
+
+尽管闭包可以被当作是一个函数，但是并不遵循和函数同样的生命周期省略规则。
 
 Closures, despite being functions, do not follow the same lifetime elision rules as functions.
 
@@ -1273,6 +1299,8 @@ fn main() {
 }
 ```
 
+报错：
+
 Throws:
 
 ```rust
@@ -1285,6 +1313,8 @@ error: lifetime may not live long enough
   |                       |   return type of closure is &'2 i32
   |                       let's call the lifetime of this reference `'1`
 ```
+
+去掉语法糖后，我们得到的是：
 
 After desugaring we get:
 
@@ -1300,6 +1330,8 @@ fn main() {
     // note: the above line is not valid syntax, but we need it for illustrative purposes
 }
 ```
+
+出现这种差异并没有什么好处。只是在闭包最初的实现中，使用的类型推断语义与函数不同，而现在将二者做一个统一将是一个 breaking change, 因此现在已经没法改了。那么我们怎么显式地标注一个闭包的类型呢？我们有以下几种方案：
 
 There's no good reason for this discrepancy. Closures were first implemented with different type inference semantics than functions and now we're stuck with it forever because to unify them at this point would be a breaking change. So how can we explicitly annotate a closure's type? Our options include:
 
@@ -1337,7 +1369,11 @@ fn main() {
 }
 ```
 
+我想你应该注意到了，在上面的例子中，如果对闭包应用 trait 约束，闭包会和函数遵循同样的生命周期省略规则。
+
 As I'm sure you've already noticed from the examples above, when closure types are used as trait bounds they do follow the usual function lifetime elision rules.
+
+这里没有什么现实的教训或见解，只是说明一下闭包是这样的。
 
 There's no real lesson or insight to be had here, it just is what it is.
 
@@ -1352,6 +1388,8 @@ There's no real lesson or insight to be had here, it just is what it is.
 
 ### 11) `'static` refs can always be coerced into `'a` refs
 
+我之前有过这样的代码：
+
 I presented this code example earlier:
 
 ```rust
@@ -1359,7 +1397,11 @@ fn get_str<'a>() -> &'a str; // generic version
 fn get_str() -> &'static str; // 'static version
 ```
 
+一些读者联系我，问这两者之间是否有实际的差异。我一开始并不确定，但一番研究过后遗憾地发现，是的，这二者确实有差异。
+
 Several readers contacted me to ask if there was a practical difference between the two. At first I wasn't sure but after some investigation it unfortunately turns out that the answer is yes, there is a practical difference between these two functions.
+
+通常在使用值时，我们能用 `'static` 引用直接代替一个 `'a` 引用，因为 Rust 会自动把 `'static` 引用强制转换为 `'a` 引用。直觉上这很合理，因为在一个对生命周期要求比较短的地方用一个生命周期比较长的引用绝不会导致任何内存安全问题。下面的这段代码和预期一致通过编译：
 
 So ordinarily, when working with values, we can use a `'static` ref in place of an `'a` ref because Rust automatically coerces `'static` refs into `'a` refs. Intuitively this makes sense, since using a ref with a long lifetime where only a short lifetime is required will never cause any memory safety issues. The program below compiles as expected:
 
@@ -1389,6 +1431,8 @@ fn main() {
     let str_ref = a_or_b(some_str, static_str_fn()); // compiles
 }
 ```
+
+然而当引用作为函数类型签名的一部分时，强制类型转换并不生效。所以下面这段代码不能通过编译：
 
 However this coercion does not take place when the references are part of a function's type signature, so this does not compile:
 
@@ -1421,6 +1465,8 @@ fn main() {
 }
 ```
 
+报错如下：
+
 Throws this error:
 
 ```rust
@@ -1436,10 +1482,12 @@ error[E0597]: `some_string` does not live long enough
    | - `some_string` dropped here while still borrowed
 ```
 
+很难说这是不是 Rust 的一个陷阱，把 `for<T> Fn() -> &'static T` 强制转换成 `for<'a, T> Fn() -> &'a T` 并不是一个像把 `&'static str` 强制转换为 `&'a str` 这样简单直白的情况。前者是类型之间的转换，后者是值之间的转换。
+
 It's debatable whether or not this is a Rust Gotcha, since it's not a simple straight-forward case of coercing a `&'static str` into a `&'a str` but coercing a `for<T> Fn() -> &'static T` into a `for<'a, T> Fn() -> &'a T`. The former is a coercion between values and the latter is a coercion between types.
 
 **关键点回顾**
-- (TODO)
+- `for <'a，T> fn（）->＆'a T` 签名的函数比 `for <T> fn（）->＆'static T` 签名的函数要更灵活，并且泛用于更多场景
 
 **Key Takeaways**
 - functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
