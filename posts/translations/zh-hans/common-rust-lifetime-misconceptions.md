@@ -676,7 +676,7 @@ Rust 借用检查器对生命周期注解的要求只到能静态验证程序的
 
 The Rust borrow checker only cares about the lifetime annotations in a program to the extent it can use them to statically verify the memory safety of the program. Rust will happily compile programs even if the lifetime annotations have semantic errors, and the consequence of this is that the program becomes unnecessarily restrictive.
 
-这儿有一个和之前相反的例子：但是我们无意间用不必要的显式注解声明了一个受限的方法（TODO）
+这儿有一个和之前相反的例子：在这个例子中，Rust 生命周期省略规则标注的生命周期是语义正确的，但是我们却在无意间使用了不必要的显式注解，导致写出了一个限制极其严格的方法。
 
 Here's a quick example that's the opposite of the previous example: Rust's lifetime elision rules happen to be semantically correct in this instance but we unintentionally write a very restrictive method with our own unnecessary explicit lifetime annotations.
 
@@ -687,16 +687,19 @@ struct NumRef<'a>(&'a i32);
 impl<'a> NumRef<'a> {
     // my struct is generic over 'a so that means I need to annotate
     // my self parameters with 'a too, right? (answer: no, not right)
-    // TODO
-    // TODO
+    // 我定义的泛型结构体以 'a 为参数，这意味着我也需要给方法的参数
+    // 标注为 'a 生命周期，对吗？（答案：错）
     fn some_method(&'a mut self) {}
 }
 
 fn main() {
     let mut num_ref = NumRef(&5);
-    num_ref.some_method(); // mutably borrows num_ref for the rest of its lifetime
-    num_ref.some_method(); // compile error
-    println!("{:?}", num_ref); // also compile error
+                           // mutably borrows num_ref for the rest of its lifetime
+    num_ref.some_method(); // 可变借用 num_ref 直至其生命周期结束
+                           // compile error
+    num_ref.some_method(); // 编译错误
+                               // also compile error
+    println!("{:?}", num_ref); // 同样编译错误
 }
 ```
 
@@ -710,17 +713,21 @@ struct NumRef<'a>(&'a i32);
 
 impl<'a> NumRef<'a> {
     // no more 'a on mut self
+    // 不再给 mut self 添加 'a 注解
     fn some_method(&mut self) {}
 
     // above line desugars to
+    // 上一行去掉语法糖后：
     fn some_method_desugared<'b>(&'b mut self){}
 }
 
 fn main() {
     let mut num_ref = NumRef(&5);
     num_ref.some_method();
-    num_ref.some_method(); // compiles
-    println!("{:?}", num_ref); // compiles
+                           // compiles
+    num_ref.some_method(); // 编译通过
+                               // compiles
+    println!("{:?}", num_ref); // 编译通过
 }
 ```
 
@@ -749,7 +756,7 @@ fn main() {
     - 若容器不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
 - 如果上面不成立，那么
     - 若 trait 定义时有且仅有一个生命周期约束，则将这个约束赋给 trait 对象
-    - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象(TODO)
+    - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象 (-TODO-这句不知道怎么翻译，希望得到意见)
     - 若 trait 没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static`
 
 ### 6) boxed trait objects don't have lifetimes
@@ -772,45 +779,48 @@ use std::cell::Ref;
 
 trait Trait {}
 
-// 展开前
 // elided
+// 展开前
 type T1 = Box<dyn Trait>;
 // expanded, Box<T> has no lifetime bound on T, so inferred as 'static
+// 展开后，Box<T> 没有对 T 的生命周期约束，所以推导为 'static
 type T2 = Box<dyn Trait + 'static>;
 
-// 展开前
 // elided
+// 展开前
 impl dyn Trait {}
-// 展开后
 // expanded
+// 展开后
 impl dyn Trait + 'static {}
 
-// 展开前
 // elided
+// 展开前
 type T3<'a> = &'a dyn Trait;
 // expanded, &'a T requires T: 'a, so inferred as 'a
+// 展开后，&'a T 要求 T: 'a, 所以推导为 'a
 type T4<'a> = &'a (dyn Trait + 'a);
 
-// 展开前
 // elided
+// 展开前
 type T5<'a> = Ref<'a, dyn Trait>;
 // expanded, Ref<'a, T> requires T: 'a, so inferred as 'a
+// 展开后，Ref<'a, T> 要求 T: 'a, 所以推导为 'a
 type T6<'a> = Ref<'a, dyn Trait + 'a>;
 
 trait GenericTrait<'a>: 'a {}
 
-// 展开前
 // elided
+// 展开前
 type T7<'a> = Box<dyn GenericTrait<'a>>;
-// 展开后
 // expanded
+// 展开后
 type T8<'a> = Box<dyn GenericTrait<'a> + 'a>;
 
-// 展开前
 // elided
+// 展开前
 impl<'a> dyn GenericTrait<'a> {}
-// 展开后
 // expanded
+// 展开后
 impl<'a> dyn GenericTrait<'a> + 'a {}
 ```
 
@@ -825,8 +835,10 @@ struct Struct {}
 struct Ref<'a, T>(&'a T);
 
 impl Trait for Struct {}
-impl Trait for &Struct {} // impl Trait directly on a ref type
-impl<'a, T> Trait for Ref<'a, T> {} // impl Trait on a type containing refs
+                          // impl Trait directly on a ref type
+impl Trait for &Struct {} // 直接为引用类型实现 Trait
+                                    // impl Trait on a type containing refs
+impl<'a, T> Trait for Ref<'a, T> {} // 为包含引用的类型实现 Trait
 ```
 
 总之，这个知识点值得反复理解，新手在重构一个使用 trait 对象的函数到一个泛型的函数或者反过来时，常常会因为这个知识点而感到困惑。来看看这个示例程序：
@@ -1064,16 +1076,20 @@ fn main() {
     {
         let short = String::from("short");
         // "switch" to short lifetime
+        // “转换到” 短的生命周期
         has.lifetime = &short;
         assert_eq!(has.lifetime, "short");
 
         // "switch back" to long lifetime (but not really)
+        // “转换回” 长的生命周期（实际是并不是）
         has.lifetime = &long;
         assert_eq!(has.lifetime, "long");
         // `short` dropped here
+        // `short` 变量在这里 drop
     }
 
     // compile error, `short` still "borrowed" after drop
+    // 编译失败， `short` 在 drop 后仍旧处于 “借用” 状态
     assert_eq!(has.lifetime, "long");
 }
 ```
@@ -1109,19 +1125,24 @@ fn main() {
     assert_eq!(has.lifetime, "long");
 
     // this block will never run
+    // 这个代码块逻辑上永远不会被执行
     if false {
         let short = String::from("short");
         // "switch" to short lifetime
+        // “转换到” 短的生命周期
         has.lifetime = &short;
         assert_eq!(has.lifetime, "short");
 
         // "switch back" to long lifetime (but not really)
+        // “转换回” 长的生命周期（实际是并不是）
         has.lifetime = &long;
         assert_eq!(has.lifetime, "long");
         // `short` dropped here
+        // `short` 变量在这里 drop
     }
 
     // still a compile error, `short` still "borrowed" after drop
+    // 还是编译失败， `short` 在 drop 后仍旧处于 “借用” 状态
     assert_eq!(has.lifetime, "long");
 }
 ```
@@ -1161,8 +1182,10 @@ fn takes_shared_ref(n: &i32) {}
 
 fn main() {
     let mut a = 10;
-    takes_shared_ref(&mut a); // compiles
-    takes_shared_ref(&*(&mut a)); // above line desugared
+                              // compiles
+    takes_shared_ref(&mut a); // 编译通过
+                                  // above line desugared
+    takes_shared_ref(&*(&mut a)); // 上面那行去掉语法糖
 }
 ```
 
@@ -1173,9 +1196,11 @@ Intuitively this makes sense, since there's no harm in re-borrowing a mut ref as
 ```rust
 fn main() {
     let mut a = 10;
-    let b: &i32 = &*(&mut a); // re-borrowed as immutable
+                              // re-borrowed as immutable
+    let b: &i32 = &*(&mut a); // 重借用为不可变引用
     let c: &i32 = &a;
-    dbg!(b, c); // compile error
+                // compile error
+    dbg!(b, c); // 编译失败
 }
 ```
 
@@ -1208,6 +1233,7 @@ struct Struct {
 
 impl Struct {
     // downgrades mut self to shared str
+    // 将 self 的独占引用降级为 str 的共享引用
     fn get_string(&mut self) -> &str {
         self.mutex.get_mut().unwrap()
     }
@@ -1215,6 +1241,8 @@ impl Struct {
         // if Rust allowed downgrading mut refs to shared refs
         // then the following line would invalidate any shared
         // refs returned from the get_string method
+        // 如果 Rust 允许独占引用降级为共享引用，那么下面这一行代码执行后，
+        // 所有通过 get_string 方法返回的 &str 都将变为非法引用
         *self.mutex.lock().unwrap() = "surprise!".to_owned();
     }
 }
@@ -1223,9 +1251,12 @@ fn main() {
     let mut s = Struct {
         mutex: Mutex::new("string".to_owned())
     };
-    let str_ref = s.get_string(); // mut ref downgraded to shared ref
-    s.mutate_string(); // str_ref invalidated, now a dangling pointer
-    dbg!(str_ref); // compile error as expected
+                                  // mut ref downgraded to shared ref
+    let str_ref = s.get_string(); // 独占引用降级为共享引用
+                       // str_ref invalidated, now a dangling pointer
+    s.mutate_string(); // str_ref 失效，变成非法引用，现在是一个悬垂指针
+                   // compile error as expected
+    dbg!(str_ref); // 当然，实际上会编译错误
 }
 ```
 
@@ -1236,15 +1267,18 @@ The point here is that when you re-borrow a mut ref as a shared ref you don't ge
 
 ```rust
 // downgrades mut T to shared T
+// 将独占引用降级为共享引用
 fn some_function<T>(some_arg: &mut T) -> &T;
 
 struct Struct;
 
 impl Struct {
     // downgrades mut self to shared self
+    // 将独占的 self 引用降级为共享的 self 引用
     fn some_method(&mut self) -> &self;
 
     // downgrades mut self to shared T
+    // 将独占的 self 引用降级为共享的 T 引用
     fn other_method(&mut self) -> &T;
 }
 ```
@@ -1265,10 +1299,13 @@ struct Player {
 
 fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<PlayerID, Player>) {
     // get players from server or create & insert new players if they don't yet exist
+    // 从 server 中得到 player, 如果不存在就创建一个默认的 player 并得到这个新创建的。
     let player_a: &Player = server.entry(player_a).or_default();
     let player_b: &Player = server.entry(player_b).or_default();
 
     // do something with players
+    // 对得到的 player 做一些操作
+                              // 编译错误
     dbg!(player_a, player_b); // compile error
 }
 ```
@@ -1289,14 +1326,18 @@ struct Player {
 
 fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<PlayerID, Player>) {
     // drop the returned mut Player refs since we can't use them together anyway
+    // 因为编译器不允许这两个返回值共存，所有这里直接丢弃这两个 &mut Player
     server.entry(player_a).or_default();
     server.entry(player_b).or_default();
 
     // fetch the players again, getting them immutably this time, without any implicit re-borrows
+    // 再次获取 player, 这次我们直接拿到共享引用，避免隐式的重借用
     let player_a = server.get(&player_a);
     let player_b = server.get(&player_b);
 
     // do something with players
+    // 对得到的 player 做一些操作
+                              // 现在能编译通过了
     dbg!(player_a, player_b); // compiles
 }
 ```
@@ -1358,14 +1399,17 @@ After desugaring we get:
 
 ```rust
 // input lifetime gets applied to output
+// 输入的生命周期应用到了输出上
 fn function<'a>(x: &'a i32) -> &'a i32 {
     x
 }
 
 fn main() {
     // input and output each get their own distinct lifetimes
+    // 输入和输出有它们自己各自的生命周期
     let closure = for<'a, 'b> |x: &'a i32| -> &'b i32 { x };
     // note: the above line is not valid syntax, but we need it for illustrative purposes
+    // 注意：上一行并不是合法的语句，但是我们需要它来描述我们目的
 }
 ```
 
@@ -1376,30 +1420,38 @@ There's no good reason for this discrepancy. Closures were first implemented wit
 ```rust
 fn main() {
     // cast to trait object, becomes unsized, oops, compile error
+    // 转换成 trait 对象，但这样是不定长的，所以会编译错误
     let identity: dyn Fn(&i32) -> &i32 = |x: &i32| x;
 
     // can allocate it on the heap as a workaround but feels clunky
+    // 可以分配到堆上作为替代方案，但是在这里堆分配感觉有点蠢
     let identity: Box<dyn Fn(&i32) -> &i32> = Box::new(|x: &i32| x);
 
     // can skip the allocation and just create a static reference
+    // 可以不用堆分配而直接创建一个 'static 引用
     let identity: &dyn Fn(&i32) -> &i32 = &|x: &i32| x;
 
     // previous line desugared :)
+    // 上一行去掉语法糖 :)
     let identity: &'static (dyn for<'a> Fn(&'a i32) -> &'a i32 + 'static) = &|x: &i32| -> &i32 { x };
 
     // this would be ideal but it's invalid syntax
+    // 这看起来很完美，但可惜不符合语法
     let identity: impl Fn(&i32) -> &i32 = |x: &i32| x;
 
     // this would also be nice but it's also invalid syntax
+    // 这个也行，但也不符合语法
     let identity = for<'a> |x: &'a i32| -> &'a i32 { x };
 
     // since "impl trait" works in the function return position
+    // 但是 "impl trait" 可以作为函数的返回值类型
     fn return_identity() -> impl Fn(&i32) -> &i32 {
         |x| x
     }
     let identity = return_identity();
 
     // more generic version of the previous solution
+    // 上一个解决方案的泛化版本
     fn annotate<T, F>(f: F) -> F where F: Fn(&T) -> &T {
         f
     }
@@ -1431,8 +1483,10 @@ There's no real lesson or insight to be had here, it just is what it is.
 I presented this code example earlier:
 
 ```rust
-fn get_str<'a>() -> &'a str; // generic version
-fn get_str() -> &'static str; // 'static version
+                             // generic version
+fn get_str<'a>() -> &'a str; // 泛型版本
+                              // 'static version
+fn get_str() -> &'static str; // 'static 版本
 ```
 
 一些读者联系我，问这两者之间是否有实际的差异。我一开始并不确定，但一番研究过后遗憾地发现，是的，这二者确实有差异。
@@ -1465,8 +1519,10 @@ fn a_or_b<T>(a: T, b: T) -> T {
 fn main() {
     let some_string = "string".to_owned();
     let some_str = &some_string[..];
-    let str_ref = a_or_b(some_str, generic_str_fn()); // compiles
-    let str_ref = a_or_b(some_str, static_str_fn()); // compiles
+                                                      // compiles
+    let str_ref = a_or_b(some_str, generic_str_fn()); // 编译通过
+                                                     // compiles
+    let str_ref = a_or_b(some_str, static_str_fn()); // 编译通过
 }
 ```
 
@@ -1498,8 +1554,10 @@ fn a_or_b_fn<T, F>(a: T, b_fn: F) -> T
 fn main() {
     let some_string = "string".to_owned();
     let some_str = &some_string[..];
-    let str_ref = a_or_b_fn(some_str, generic_str_fn); // compiles
-    let str_ref = a_or_b_fn(some_str, static_str_fn); // compile error
+                                                       // compiles
+    let str_ref = a_or_b_fn(some_str, generic_str_fn); // 编译通过
+                                                      // compile error
+    let str_ref = a_or_b_fn(some_str, static_str_fn); // 编译错误
 }
 ```
 
