@@ -1,4 +1,8 @@
+# Rust 中常见的有关生命周期的误解
+
 # Common Rust Lifetime Misconceptions
+
+_2020 年 5 月 19 日 · 预计阅读 30 分钟 · #rust · #生命周期_
 
 _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
 
@@ -123,11 +127,11 @@ trait Trait {}
 
 impl<T> Trait for T {}
 
-                        // 编译错误
-impl<T> Trait for &T {} // compile error
+                        // compile error
+impl<T> Trait for &T {} // 编译错误
 
-                            // 编译错误
-impl<T> Trait for &mut T {} // compile error
+                            // compile error
+impl<T> Trait for &mut T {} // 编译错误
 ```
 
 上述代码不能编译通过：
@@ -154,18 +158,18 @@ error[E0119]: conflicting implementations of trait `Trait` for type `&mut _`:
   | ^^^^^^^^^^^^^^^^^^^^^^^^ conflicting implementation for `&mut _`
 ```
 
-编译器不允许我们为 `&T` 和 `&mut T` 实现 `Trait`，因为这与我们为 `T` 实现的 `Trait` 发生了冲突，而 `T` 已经包括了 `&T` 和 `&mut T`. 因为 `&T` 和 `&mut T` 是不相交的，所以下面的代码可以通过编译
+编译器不允许我们为 `&T` 和 `&mut T` 实现 `Trait`，因为这与我们为 `T` 实现的 `Trait` 发生了冲突，而 `T` 已经包括了 `&T` 和 `&mut T`. 因为 `&T` 和 `&mut T` 是不相交的，所以下面的代码可以通过编译：
 
 The compiler doesn't allow us to define an implementation of `Trait` for `&T` and `&mut T` since it would conflict with the implementation of `Trait` for `T` which already includes all of `&T` and `&mut T`. The program below compiles as expected, since `&T` and `&mut T` are disjoint:
 
 ```rust
 trait Trait {}
 
-                        // 编译通过
-impl<T> Trait for &T {} // compiles
+                        // compiles
+impl<T> Trait for &T {} // 编译通过
 
-                            // 编译通过
-impl<T> Trait for &mut T {} // compiles
+                            // compiles
+impl<T> Trait for &mut T {} // 编译通过
 ```
 
 **关键点回顾**
@@ -199,8 +203,8 @@ Most Rust beginners get introduced to the `'static` lifetime for the first time 
 
 ```rust
 fn main() {
-                                    // "字符串字面量"
-    let str_literal: &'static str = "str literal";
+                                 // "str literal"
+    let str_literal: &'static str = "字符串字面量";
 }
 ```
 
@@ -213,8 +217,8 @@ static BYTES: [u8; 3] = [1, 2, 3];
 static mut MUT_BYTES: [u8; 3] = [1, 2, 3];
 
 fn main() {
-                      // 编译错误，修改静态变量是 unsafe 的
-   MUT_BYTES[0] = 99; // compile error, mutating static is unsafe
+                      // compile error, mutating static is unsafe
+   MUT_BYTES[0] = 99; // 编译错误，修改静态变量是 unsafe 的
 
     unsafe {
         MUT_BYTES[0] = 99;
@@ -252,8 +256,8 @@ It's important at this point to distinguish `&'static T` from `T: 'static`.
 ```rust
 use rand;
 
-// 在运行时生成随机 &'static str
 // generate random 'static str refs at run-time
+// 在运行时生成随机 &'static str
 fn rand_str_generator() -> &'static str {
     let rand_string = rand::random::<u64>().to_string();
     Box::leak(rand_string.into_boxed_str())
@@ -275,28 +279,28 @@ fn main() {
     let mut strings: Vec<String> = Vec::new();
     for _ in 0..10 {
         if rand::random() {
-            // 所有字符串都是随机生成的
-            // 并且在运行时动态分配
             // all the strings are randomly generated
             // and dynamically allocated at run-time
+            // 所有字符串都是随机生成的
+            // 并且在运行时动态分配
             let string = rand::random::<u64>().to_string();
             strings.push(string);
         }
     }
 
-    // 这些字符串是所有权类型，所以他们满足 'static 生命周期约束
     // strings are owned types so they're bounded by 'static
+    // 这些字符串是所有权类型，所以他们满足 'static 生命周期约束
     for mut string in strings {
-        // 这些字符串是可变的
         // all the strings are mutable
+        // 这些字符串是可变的
         string.push_str("a mutation");
-        // 这些字符串都可以被 drop
         // all the strings are droppable
+        // 这些字符串都可以被 drop
         drop_static(string); // compiles
     }
 
-    // 这些字符串在程序结束之前就已经全部失效了
     // all the strings have been invalidated before the end of the program
+    // 这些字符串在程序结束之前就已经全部失效了
     println!("i am the end of the program");
 }
 ```
@@ -305,11 +309,11 @@ fn main() {
 - `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
 - 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型 _或_ 是一个所有权类型
 - 因为 `T: 'static` 包括了所有权类型，所以 `T`
-    - 可以在运行时动态分配
-    - 不需要在整个程序运行期间都有效
-    - 可以安全，自由地修改
-    - 可以在运行时被动态的 drop
-    - 可以有不同长度的生命周期
+  - 可以在运行时动态分配
+  - 不需要在整个程序运行期间都有效
+  - 可以安全，自由地修改
+  - 可以在运行时被动态的 drop
+  - 可以有不同长度的生命周期
 
 **Key Takeaways**
 - `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_
@@ -340,39 +344,39 @@ This misconception is a generalized version of the one above.
 `T: 'a` includes all `&'a T` but the reverse is not true.
 
 ```rust
-// 只接受带有 'a 生命周期注解的引用类型
 // only takes ref types bounded by 'a
+// 只接受带有 'a 生命周期注解的引用类型
 fn t_ref<'a, T: 'a>(t: &'a T) {}
 
-// 接受满足 'a 生命周期约束的任何类型
 // takes any types bounded by 'a
+// 接受满足 'a 生命周期约束的任何类型
 fn t_bound<'a, T: 'a>(t: T) {}
 
-// 内部含有引用的所有权类型
 // owned type which contains a reference
+// 内部含有引用的所有权类型
 struct Ref<'a, T: 'a>(&'a T);
 
 fn main() {
     let string = String::from("string");
 
-                      // 编译通过
-                           // 编译通过
-                            // 编译通过
-    t_bound(&string); // compiles
-    t_bound(Ref(&string)); // compiles
-    t_bound(&Ref(&string)); // compiles
+                      // compiles
+    t_bound(&string); // 编译通过
+                           // compiles
+    t_bound(Ref(&string)); // 编译通过
+                            // compiles
+    t_bound(&Ref(&string)); // 编译通过
 
-                    // 编译通过
-                         // 编译通过
-                          // 编译通过
-    t_ref(&string); // compiles
-    t_ref(Ref(&string)); // compile error, expected ref, found struct
-    t_ref(&Ref(&string)); // compiles
+                    // compiles
+    t_ref(&string); // 编译通过
+                         // compile error, expected ref, found struct
+    t_ref(Ref(&string)); // 编译失败，期望得到引用，实际得到 struct
+                          // compiles
+    t_ref(&Ref(&string)); // 编译通过
 
-    // 满足 'static 约束的字符串变量可以转换为 'a 约束
     // string var is bounded by 'static which is bounded by 'a
-                     // 编译通过
-    t_bound(string); // compiles
+    // 满足 'static 约束的字符串变量可以转换为 'a 约束
+                     // compiles
+    t_bound(string); // 编译通过
 }
 ```
 
@@ -418,35 +422,52 @@ That's a lot to take in so let's look at some examples:
 
 ```rust
 // elided
+// 展开前
 fn print(s: &str);
 
 // expanded
+// 展开后
 fn print<'a>(s: &'a str);
 
 // elided
+// 展开前
 fn trim(s: &str) -> &str;
 
 // expanded
+// 展开后
 fn trim<'a>(s: &'a str) -> &'a str;
 
 // illegal, can't determine output lifetime, no inputs
+// 非法，没有输入，不能确定返回值的生命周期
 fn get_str() -> &str;
 
 // explicit options include
-fn get_str<'a>() -> &'a str; // generic version
-fn get_str() -> &'static str; // 'static version
+// 显式标注的方案
+                             // generic version
+fn get_str<'a>() -> &'a str; // 泛型版本
+                              // 'static version
+fn get_str() -> &'static str; // 'static 版本
 
 // illegal, can't determine output lifetime, multiple inputs
+// 非法，多个输入，不能确定返回值的生命周期
 fn overlap(s: &str, t: &str) -> &str;
 
 // explicit (but still partially elided) options include
-fn overlap<'a>(s: &'a str, t: &str) -> &'a str; // output can't outlive s
-fn overlap<'a>(s: &str, t: &'a str) -> &'a str; // output can't outlive t
-fn overlap<'a>(s: &'a str, t: &'a str) -> &'a str; // output can't outlive s & t
-fn overlap(s: &str, t: &str) -> &'static str; // output can outlive s & t
-fn overlap<'a>(s: &str, t: &str) -> &'a str; // no relationship between input & output lifetimes
+// 显式标注（但仍有部分标注被省略）的方案
+                                                // output can't outlive s
+fn overlap<'a>(s: &'a str, t: &str) -> &'a str; // 返回值的生命周期不长于 s
+                                                // output can't outlive t
+fn overlap<'a>(s: &str, t: &'a str) -> &'a str; // 返回值的生命周期不长于 t
+
+                                                   // output can't outlive s & t
+fn overlap<'a>(s: &'a str, t: &'a str) -> &'a str; // 返回值的生命周期不长于 s 且不长于 t
+                                              // output can outlive s & t
+fn overlap(s: &str, t: &str) -> &'static str; // 返回值的生命周期可以长于 s 或者 t
+                                             // no relationship between input & output lifetimes
+fn overlap<'a>(s: &str, t: &str) -> &'a str; // 返回值的生命周期与输入无关
 
 // expanded
+// 展开后
 fn overlap<'a, 'b>(s: &'a str, t: &'b str) -> &'a str;
 fn overlap<'a, 'b>(s: &'a str, t: &'b str) -> &'b str;
 fn overlap<'a>(s: &'a str, t: &'a str) -> &'a str;
@@ -454,9 +475,11 @@ fn overlap<'a, 'b>(s: &'a str, t: &'b str) -> &'static str;
 fn overlap<'a, 'b, 'c>(s: &'a str, t: &'b str) -> &'c str;
 
 // elided
+// 展开前
 fn compare(&self, s: &str) -> &str;
 
 // expanded
+// 展开后
 fn compare<'a, 'b>(&'a self, &'b str) -> &'a str;
 ```
 
@@ -541,6 +564,7 @@ fn main() {
     let byte_2 = bytes.next();
     if byte_1 == byte_2 {
         // do something
+        // 一些代码
     }
 }
 ```
@@ -634,9 +658,12 @@ fn main() {
     let mut bytes = ByteIter { remainder: b"1123" };
     let byte_1 = bytes.next();
     let byte_2 = bytes.next();
-    std::mem::drop(bytes); // we can even drop the iterator now!
-    if byte_1 == byte_2 { // compiles
+                           // we can even drop the iterator now!
+    std::mem::drop(bytes); // 我们现在甚至可以把这个迭代器给 drop 掉！
+                          // compiles
+    if byte_1 == byte_2 { // 编译通过
         // do something
+        // 一些代码
     }
 }
 ```
@@ -645,7 +672,7 @@ fn main() {
 
 Now that we look back on the previous version of our program it was obviously wrong, so why did Rust compile it? The answer is simple: it was memory safe.
 
-Rust 借用检查器静态验证程序的内存安全（TODO）。即便生命周期注解有语义上的错误，Rust 也能编译通过程序，这样做给程序带来不必要的限制。
+Rust 借用检查器对生命周期注解的要求只到能静态验证程序的内存安全为止。即便生命周期注解有语义上的错误，Rust 也能让程序编译通过，哪怕这样做为程序带来不必要的限制。
 
 The Rust borrow checker only cares about the lifetime annotations in a program to the extent it can use them to statically verify the memory safety of the program. Rust will happily compile programs even if the lifetime annotations have semantic errors, and the consequence of this is that the program becomes unnecessarily restrictive.
 
@@ -660,6 +687,8 @@ struct NumRef<'a>(&'a i32);
 impl<'a> NumRef<'a> {
     // my struct is generic over 'a so that means I need to annotate
     // my self parameters with 'a too, right? (answer: no, not right)
+    // TODO
+    // TODO
     fn some_method(&'a mut self) {}
 }
 
@@ -716,12 +745,12 @@ fn main() {
 之前我们讨论了 Rust _对函数_ 的生命周期省略规则。Rust 对 trait 对象也存在生命周期省略规则，它们是：
 
 - 如果 trait 对象被用作泛型类型的一个类型参数，那么 trait 对象的的生命周期约束依据容器的类型进行推导
-  - 若容器有唯一的生命周期约束，则将这个约束赋给 trait 对象
-  - 若容器不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
+    - 若容器有唯一的生命周期约束，则将这个约束赋给 trait 对象
+    - 若容器不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
 - 如果上面不成立，那么
-  - 若 trait 定义时有且仅有一个生命周期约束，则将这个约束赋给 trait 对象
-  - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象(TODO)
-  - 若 trait 没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static`
+    - 若 trait 定义时有且仅有一个生命周期约束，则将这个约束赋给 trait 对象
+    - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象(TODO)
+    - 若 trait 没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static`
 
 ### 6) boxed trait objects don't have lifetimes
 
@@ -743,21 +772,26 @@ use std::cell::Ref;
 
 trait Trait {}
 
+// 展开前
 // elided
 type T1 = Box<dyn Trait>;
 // expanded, Box<T> has no lifetime bound on T, so inferred as 'static
 type T2 = Box<dyn Trait + 'static>;
 
+// 展开前
 // elided
 impl dyn Trait {}
+// 展开后
 // expanded
 impl dyn Trait + 'static {}
 
+// 展开前
 // elided
 type T3<'a> = &'a dyn Trait;
 // expanded, &'a T requires T: 'a, so inferred as 'a
 type T4<'a> = &'a (dyn Trait + 'a);
 
+// 展开前
 // elided
 type T5<'a> = Ref<'a, dyn Trait>;
 // expanded, Ref<'a, T> requires T: 'a, so inferred as 'a
@@ -765,13 +799,17 @@ type T6<'a> = Ref<'a, dyn Trait + 'a>;
 
 trait GenericTrait<'a>: 'a {}
 
+// 展开前
 // elided
 type T7<'a> = Box<dyn GenericTrait<'a>>;
+// 展开后
 // expanded
 type T8<'a> = Box<dyn GenericTrait<'a> + 'a>;
 
+// 展开前
 // elided
 impl<'a> dyn GenericTrait<'a> {}
+// 展开后
 // expanded
 impl<'a> dyn GenericTrait<'a> + 'a {}
 ```
@@ -1095,7 +1133,7 @@ Lifetimes have to be statically verified at compile-time and the Rust borrow che
 **关键点回顾**
 - 生命周期在编译时被静态确定
 - 生命周期在运行时不能被改变
-- Rust 借用检查器假设所有代码路径都能被执行，所以总是选择尽可能短的生命周期赋给变量。
+- Rust 借用检查器假设所有代码路径都能被执行，所以总是选择尽可能短的生命周期赋给变量
 
 **Key Takeaways**
 - lifetimes are statically verified at compile-time
@@ -1378,7 +1416,7 @@ As I'm sure you've already noticed from the examples above, when closure types a
 There's no real lesson or insight to be had here, it just is what it is.
 
 **关键点回顾**
-- 每个语言都有陷阱 🤷
+- 每个语言都有其陷阱 🤷
 
 **Key Takeaways**
 - every language has gotchas 🤷
@@ -1496,34 +1534,34 @@ It's debatable whether or not this is a Rust Gotcha, since it's not a simple str
 
 ## 总结
 
-- `T` is a superset of both `&T` and `&mut T`
-- `&T` and `&mut T` are disjoint sets
-- `T: 'static` should be read as _"`T` is bounded by a `'static` lifetime"_
-- if `T: 'static` then `T` can be a borrowed type with a `'static` lifetime _or_ an owned type
-- since `T: 'static` includes owned types that means `T`
-  - can be dynamically allocated at run-time
-  - does not have to be valid for the entire program
-  - can be safely and freely mutated
-  - can be dynamically dropped at run-time
-  - can have lifetimes of different durations
-- `T: 'a` is more general and more flexible than `&'a T`
-- `T: 'a` accepts owned types, owned types which contain references, and references
-- `&'a T` only accepts references
-- if `T: 'static` then `T: 'a` since `'static` >= `'a` for all `'a`
-- almost all Rust code is generic code and there's elided lifetime annotations everywhere
-- Rust's lifetime elision rules are not always right for every situation
-- Rust does not know more about the semantics of your program than you do
-- give your lifetime annotations descriptive names
-- try to be mindful of where you place explicit lifetime annotations and why
-- all trait objects have some inferred default lifetime bounds
-- Rust compiler error messages suggest fixes which will make your program compile which is not that same as fixes which will make you program compile _and_ best suit the requirements of your program
-- lifetimes are statically verified at compile-time
-- lifetimes cannot grow or shrink or change in any way at run-time
-- Rust borrow checker will always choose the shortest possible lifetime for a variable assuming all code paths can be taken
-- try not to re-borrow mut refs as shared refs, or you're gonna have a bad time
-- re-borrowing a mut ref doesn't end its lifetime, even if the ref is dropped
-- every language has gotchas 🤷
-- functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
+- `T` 是 `&T` 和 `&mut T` 的超集
+- `&T` 和 `&mut T` 是不相交的集合
+- `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
+- 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型 _或_ 是一个所有权类型
+- 因为 `T: 'static` 包括了所有权类型，所以 `T`
+    - 可以在运行时动态分配
+    - 不需要在整个程序运行期间都有效
+    - 可以安全，自由地修改
+    - 可以在运行时被动态的 drop
+    - 可以有不同长度的生命周期
+- `T: 'a` 比 `&'a T` 更泛化，更灵活
+- `T: 'a` 接受所有权类型，内部含有引用的所有权类型，和引用
+- `&'a T` 只接受引用
+- 若 `T: 'static` 则 `T: 'a` 因为对于所有 `'a` 都有 `'static` >= `'a`
+- 几乎所有的 Rust 代码都是泛型代码，并且到处都带有被省略掉的泛型生命周期注解e
+- Rust 生命周期省略规则并不保证在任何情况下都正确
+- 在程序的语义方面，Rust 并不比你懂
+- 可以试试给你的生命周期注解起一个有意义的名字
+- 试着记住你在哪里添加了显式生命周期注解，以及为什么要
+- 所有 trait 对象都含有自动推导的生命周期
+- Rust 编译错误的提示信息所提出的修复方案并不一定能满足你对程序的需求
+- 生命周期在编译时被静态确定
+- 生命周期在运行时不能被改变
+- Rust 借用检查器假设所有代码路径都能被执行，所以总是选择尽可能短的生命周期赋给变量
+- 尽量避免重借用一个独占引用为共享引用，不然你会遇到很多麻烦
+- 重借用一个独占引用并不会结束其生命周期，哪怕它自身已经被 drop 掉了
+- 每个语言都有其陷阱 🤷
+- `for <'a，T> fn（）->＆'a T` 签名的函数比 `for <T> fn（）->＆'static T` 签名的函数要更灵活，并且泛用于更多场
 
 ## Conclusion
 
@@ -1560,7 +1598,7 @@ It's debatable whether or not this is a Rust Gotcha, since it's not a simple str
 
 ## 讨论
 
-(TODO)
+可以在这些地方进行讨论
 - [learnrust subreddit](https://www.reddit.com/r/learnrust/comments/gmrcrq/common_rust_lifetime_misconceptions/)
 - [official Rust users forum](https://users.rust-lang.org/t/blog-post-common-rust-lifetime-misconceptions/42950)
 - [Twitter](https://twitter.com/pretzelhammer/status/1263505856903163910)
@@ -1582,7 +1620,7 @@ Discuss this article on
 
 ## 通知
 
-(TODO)
+通过这些渠道获取最新消息
 - [Following pretzelhammer on Twitter](https://twitter.com/pretzelhammer) or
 - Watching this repo's releases (click on `Watch` dropdown and select `Releases only`)
 
