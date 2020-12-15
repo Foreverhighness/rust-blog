@@ -18,7 +18,7 @@ _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
     - [3) `&'a T` 和 `T: 'a` 是一回事](#3-a-t-和-t-a-是一回事)
     - [4) 我的代码里不含泛型也不含生命周期注解](#4-我的代码里不含泛型也不含生命周期注解)
     - [5) 如果编译通过了，那么我标注的生命周期就是正确的](#5-如果编译通过了那么我标注的生命周期就是正确的)
-    - [6) 装箱的 trait 对象不含生命周期注解](#6-装箱的-trait-对象不含生命周期注解)
+    - [6) 已装箱的 trait 对象不含生命周期注解](#6-已装箱的-trait-对象不含生命周期注解)
     - [7) 编译报错的信息会告诉我怎样修复我的程序](#7-编译报错的信息会告诉我怎样修复我的程序)
     - [8) 生命周期可以在运行时动态变长或变短](#8-生命周期可以在运行时动态变长或变短)
     - [9) 将独占引用降级为共享引用是 safe 的](#9-将独占引用降级为共享引用是-safe-的)
@@ -26,7 +26,7 @@ _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
     - [11) `'static` 引用总能被强制转换为 `'a` 引用](#11-static-引用总能被强制转换为-a-引用)
 - [总结](#总结)
 - [讨论](#讨论)
-- [通知](#通知)
+- [温馨提示](#温馨提示)
 - [拓展阅读](#拓展阅读)
 
 **Table of Contents**
@@ -311,7 +311,7 @@ fn main() {
 ```
 
 **关键点回顾**
-- `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
+- `T: 'static` 应当视为 _“`T` 满足 `'static` 生命周期约束”_
 - 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型 _或_ 是一个所有权类型
 - 因为 `T: 'static` 包括了所有权类型，所以 `T`
   - 可以在运行时动态分配
@@ -557,7 +557,7 @@ fn main() {
 }
 ```
 
-是一个 byte 切片的迭代器，简洁起见，我这里省略了 Iterator trait 的具体实现。这看起来没什么问题，但如果我们想同时检查多个 byte 呢？
+`ByteIter` 是一个 byte 切片上的迭代器，简洁起见，我这里省略了 Iterator trait 的具体实现。这看起来没什么问题，但如果我们想同时检查多个 byte 呢？
 
 `ByteIter` is an iterator that iterates over a slice of bytes. We're skipping the `Iterator` trait implementation for conciseness. It seems to work fine, but what if we want to check a couple bytes at a time?
 
@@ -615,7 +615,7 @@ impl<'a> ByteIter<'a> {
 }
 ```
 
-感觉好像没啥用，我还是搞不清楚问题出在哪。这里有个 Rust 专家才知道的小技巧：给你的生命周期注解起一个描述性的名字，让我们试一下：
+感觉好像没啥用，我还是搞不清楚问题出在哪。这里有个 Rust 专家才知道的小技巧：给你的生命周期注解起一个更有含义的名字，让我们试一下：
 
 That didn't help at all. I'm still confused. Here's a hot tip that only Rust pros know: give your lifetime annotations descriptive names. Let's try again:
 
@@ -637,7 +637,7 @@ impl<'remainder> ByteIter<'remainder> {
 }
 ```
 
-每个返回的 byte 都被标注为 `'mut_self`, 但是显然这些 byte 都源于 `'remainder`! 让我们来修复一下。
+每个返回的 byte 都被标注为 `'mut_self`, 但是显然这些 byte 都源于 `'remainder`! 让我们来修复一下这段代码。
 
 Each returned byte is annotated with `'mut_self` but the bytes are clearly coming from `'remainder`! Let's fix it.
 
@@ -749,16 +749,16 @@ fn main() {
 
 
 
-### 6) 装箱的 trait 对象不含生命周期注解
+### 6) 已装箱的 trait 对象不含生命周期注解
 
 之前我们讨论了 Rust _对函数_ 的生命周期省略规则。Rust 对 trait 对象也存在生命周期省略规则，它们是：
-- 如果 trait 对象被用作泛型类型的一个类型参数，那么 trait 对象的的生命周期约束依据容器的类型进行推导
-    - 若容器有唯一的生命周期约束，则将这个约束赋给 trait 对象
-    - 若容器不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
-- 如果上面不成立，那么
+- 如果 trait 对象被用作泛型类型的一个类型参数，那么 trait 对象的的生命周期约束会依据该类型参数的定义进行推导
+    - 若该类型参数有唯一的生命周期约束，则将这个约束赋给 trait 对象
+    - 若该类型参数不止一个生命周期约束，则 trait 对象的生命周期约束需要显式标注
+- 如果上面不成立，也就是说该类型参数没有生命周期约束，那么
     - 若 trait 定义时有且仅有一个生命周期约束，则将这个约束赋给 trait 对象
-    - 若所有生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象 (-TODO-这句不知道怎么翻译，希望得到意见)
-    - 若 trait 没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static`
+    - 若 trait 定义时生命周期约束中存在一个 `'static`, 则将 `'static` 赋给 trait 对象
+    - 若 trait 定义时没有生命周期约束，则当 trait 对象是表达式的一部分时，生命周期从表达式中推导而出，否则赋予 `'static``
 
 ### 6) boxed trait objects don't have lifetimes
 
@@ -998,7 +998,7 @@ fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> {
 }
 ```
 
-这个函数所能接受的实际参数比前一个函数多了不少！这个函数是不是更好？不一定必要，这取决于我们对程序的要求与约束。上面这个例子有点抽象，所以让我们看一个更简单明了的例子：
+这个函数所能接受的实际参数比前一个函数多了不少！这个函数是不是更好？确实，但不一定必要，这取决于我们对程序的要求与约束。上面这个例子有点抽象，所以让我们看一个更简单明了的例子：
 
 This function accepts all the same arguments as the previous version plus a lot more! Does that make it better? Not necessarily, it depends on the requirements and constraints of our program. This example is a bit abstract so let's take a look at a simpler and more obvious case:
 
@@ -1263,7 +1263,8 @@ fn main() {
 ```
 
 这里的关键点在于，你在重借用一个独占引用为共享引用时，就已经落入了一个陷阱：为了保证重借用得到的共享引用在其生命周期内有效，被重借用的独占引用也必须保证在这段时期有效，这延长了独占引用的生命周期！哪怕独占引用自身已经被 drop 掉了，但独占引用的生命周期却一直延续到共享引用的生命周期结束。
-使用重借用得到的共享引用是很难受的，因为它明明是一个共享引用但是却不能和其他共享引用同时共存。重借用得到的共享引用有着独占引用和共享引用的缺点，却没有二者的优点。我认为重借用一个独占引用为共享引用的行为应当被视为 Rust 的一种反模式。知道这种反模式是很重要的，当你看到这样的代码时，你就能轻易地发现错误了：
+
+使用重借用得到的共享引用是很难受的，因为它明明是一个共享引用但是却不能和其他共享引用共存。重借用得到的共享引用有着独占引用和共享引用的缺点，却没有二者的优点。我认为重借用一个独占引用为共享引用的行为应当被视为 Rust 的一种反模式。知道这种反模式是很重要的，当你看到这样的代码时，你就能轻易地发现错误了：
 
 The point here is that when you re-borrow a mut ref as a shared ref you don't get that shared ref without a big gotcha: it extends the mut ref's lifetime for the duration of the re-borrow even if the mut ref itself is dropped. Using the re-borrowed shared ref is very difficult because it's immutable but it can't overlap with any other shared refs. The re-borrowed shared ref has all the cons of a mut ref and all the cons of a shared ref and has the pros of neither. I believe re-borrowing a mut ref as a shared ref should be considered a Rust anti-pattern. Being aware of this anti-pattern is important so that you can easily spot it when you see code like this:
 
@@ -1495,7 +1496,7 @@ fn get_str() -> &'static str; // 'static 版本
 
 Several readers contacted me to ask if there was a practical difference between the two. At first I wasn't sure but after some investigation it unfortunately turns out that the answer is yes, there is a practical difference between these two functions.
 
-通常在使用值时，我们能用 `'static` 引用直接代替一个 `'a` 引用，因为 Rust 会自动把 `'static` 引用强制转换为 `'a` 引用。直觉上这很合理，因为在一个对生命周期要求比较短的地方用一个生命周期比较长的引用绝不会导致任何内存安全问题。下面的这段代码和预期一致通过编译：
+通常在使用值时，我们能用 `'static` 引用直接代替一个 `'a` 引用，因为 Rust 会自动把 `'static` 引用强制转换为 `'a` 引用。直觉上这很合理，因为在一个对生命周期要求比较短的地方用一个生命周期比较长的引用绝不会导致任何内存安全问题。下面的这段代码通过编译，和预期一致：
 
 So ordinarily, when working with values, we can use a `'static` ref in place of an `'a` ref because Rust automatically coerces `'static` refs into `'a` refs. Intuitively this makes sense, since using a ref with a long lifetime where only a short lifetime is required will never cause any memory safety issues. The program below compiles as expected:
 
@@ -1596,7 +1597,7 @@ It's debatable whether or not this is a Rust Gotcha, since it's not a simple str
 
 - `T` 是 `&T` 和 `&mut T` 的超集
 - `&T` 和 `&mut T` 是不相交的集合
-- `T: 'static` 应当视为_“`T` 满足 `'static` 生命周期约束”_
+- `T: 'static` 应当视为 _“`T` 满足 `'static` 生命周期约束”_
 - 若 `T: 'static` 则 `T` 可以是一个有 `'static` 生命周期的引用类型 _或_ 是一个所有权类型
 - 因为 `T: 'static` 包括了所有权类型，所以 `T`
     - 可以在运行时动态分配
@@ -1678,7 +1679,7 @@ Discuss this article on
 
 
 
-## 通知
+## 温馨提示
 
 通过这些渠道获取最新消息
 - [Following pretzelhammer on Twitter](https://twitter.com/pretzelhammer) or
