@@ -1,6 +1,6 @@
 # Learn Assembly by Writing Entirely Too Many Brainfuck Compilers
 
-_Nov 1st, 2020 · 50 minute read · #assembly · #compilers_
+_01 November 2020 · #assembly · #compilers_
 
 **Table of Contents**
 - [Intro](#intro)
@@ -2234,7 +2234,8 @@ Discuss this article on
 
 Get notified when the next article gets published by
 - [Following pretzelhammer on Twitter](https://twitter.com/pretzelhammer) or
-- Watching this repo's releases (click on `Watch` dropdown and select `Releases only`)
+- [Subscribing to this repo's release RSS feed](https://github.com/pretzelhammer/rust-blog/releases.atom) or
+- Watching this repo's releases (click `Watch` -> click `Custom` -> select `Releases` -> click `Apply`)
 
 
 
@@ -2243,6 +2244,8 @@ Get notified when the next article gets published by
 Rust
 - [Common Rust Lifetime Misconceptions](./common-rust-lifetime-misconceptions.md)
 - [Sizedness in Rust](./sizedness-in-rust.md)
+- [Tour of Rust's Standard Library Traits](./tour-of-rusts-standard-library-traits.md)
+- [RESTful API in Sync & Async Rust](./restful-api-in-sync-and-async-rust.md)
 - [Learning Rust in 2020](./learning-rust-in-2020.md)
 
 ISAs

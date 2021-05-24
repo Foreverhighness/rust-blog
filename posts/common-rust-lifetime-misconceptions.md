@@ -1,6 +1,6 @@
 # Common Rust Lifetime Misconceptions
 
-_May 19th, 2020 · 30 minute read · #rust · #lifetimes_
+_19 May 2020 · #rust · #lifetimes_
 
 **Table of Contents**
 - [Intro](#intro)
@@ -15,7 +15,6 @@ _May 19th, 2020 · 30 minute read · #rust · #lifetimes_
     - [8) lifetimes can grow and shrink at run-time](#8-lifetimes-can-grow-and-shrink-at-run-time)
     - [9) downgrading mut refs to shared refs is safe](#9-downgrading-mut-refs-to-shared-refs-is-safe)
     - [10) closures follow the same lifetime elision rules as functions](#10-closures-follow-the-same-lifetime-elision-rules-as-functions)
-    - [11) `'static` refs can always be coerced into `'a` refs](#11-static-refs-can-always-be-coerced-into-a-refs)
 - [Conclusion](#conclusion)
 - [Discuss](#discuss)
 - [Notifications](#notifications)
@@ -68,14 +67,14 @@ trait Trait {}
 
 impl<T> Trait for T {}
 
-impl<T> Trait for &T {} // compile error
+impl<T> Trait for &T {} // ❌
 
-impl<T> Trait for &mut T {} // compile error
+impl<T> Trait for &mut T {} // ❌
 ```
 
 The above program doesn't compile as expected:
 
-```rust
+```none
 error[E0119]: conflicting implementations of trait `Trait` for type `&_`:
  --> src/lib.rs:5:1
   |
@@ -100,9 +99,9 @@ The compiler doesn't allow us to define an implementation of `Trait` for `&T` an
 ```rust
 trait Trait {}
 
-impl<T> Trait for &T {} // compiles
+impl<T> Trait for &T {} // ✅
 
-impl<T> Trait for &mut T {} // compiles
+impl<T> Trait for &mut T {} // ✅
 ```
 
 **Key Takeaways**
@@ -129,11 +128,16 @@ fn main() {
 They get told that `"str literal"` is hardcoded into the compiled binary and is loaded into read-only memory at run-time so it's immutable and valid for the entire program and that's what makes it `'static`. These concepts are further reinforced by the rules surrounding defining `static` variables using the `static` keyword.
 
 ```rust
+// Note: This example is purely for illustrative purposes.
+// Never use `static mut`. It's a footgun. There are
+// safe patterns for global mutable singletons in Rust but
+// those are outside the scope of this article.
+
 static BYTES: [u8; 3] = [1, 2, 3];
 static mut MUT_BYTES: [u8; 3] = [1, 2, 3];
 
 fn main() {
-   MUT_BYTES[0] = 99; // compile error, mutating static is unsafe
+   MUT_BYTES[0] = 99; // ❌ - mutating static is unsafe
 
     unsafe {
         MUT_BYTES[0] = 99;
@@ -190,11 +194,11 @@ fn main() {
         // all the strings are mutable
         string.push_str("a mutation");
         // all the strings are droppable
-        drop_static(string); // compiles
+        drop_static(string); // ✅
     }
 
     // all the strings have been invalidated before the end of the program
-    println!("i am the end of the program");
+    println!("I am the end of the program");
 }
 ```
 
@@ -231,16 +235,16 @@ struct Ref<'a, T: 'a>(&'a T);
 fn main() {
     let string = String::from("string");
 
-    t_bound(&string); // compiles
-    t_bound(Ref(&string)); // compiles
-    t_bound(&Ref(&string)); // compiles
+    t_bound(&string); // ✅
+    t_bound(Ref(&string)); // ✅
+    t_bound(&Ref(&string)); // ✅
 
-    t_ref(&string); // compiles
-    t_ref(Ref(&string)); // compile error, expected ref, found struct
-    t_ref(&Ref(&string)); // compiles
+    t_ref(&string); // ✅
+    t_ref(Ref(&string)); // ❌ - expected ref, found struct
+    t_ref(&Ref(&string)); // ✅
 
     // string var is bounded by 'static which is bounded by 'a
-    t_bound(string); // compiles
+    t_bound(string); // ✅
 }
 ```
 
@@ -364,7 +368,7 @@ fn main() {
     let mut bytes = ByteIter { remainder: b"1123" };
     let byte_1 = bytes.next();
     let byte_2 = bytes.next();
-    if byte_1 == byte_2 {
+    if byte_1 == byte_2 { // ❌
         // do something
     }
 }
@@ -372,7 +376,7 @@ fn main() {
 
 Uh oh! Compile error:
 
-```rust
+```none
 error[E0499]: cannot borrow `bytes` as mutable more than once at a time
   --> src/main.rs:20:18
    |
@@ -450,7 +454,7 @@ fn main() {
     let byte_1 = bytes.next();
     let byte_2 = bytes.next();
     std::mem::drop(bytes); // we can even drop the iterator now!
-    if byte_1 == byte_2 { // compiles
+    if byte_1 == byte_2 { // ✅
         // do something
     }
 }
@@ -475,8 +479,8 @@ impl<'a> NumRef<'a> {
 fn main() {
     let mut num_ref = NumRef(&5);
     num_ref.some_method(); // mutably borrows num_ref for the rest of its lifetime
-    num_ref.some_method(); // compile error
-    println!("{:?}", num_ref); // also compile error
+    num_ref.some_method(); // ❌
+    println!("{:?}", num_ref); // ❌
 }
 ```
 
@@ -497,8 +501,8 @@ impl<'a> NumRef<'a> {
 fn main() {
     let mut num_ref = NumRef(&5);
     num_ref.some_method();
-    num_ref.some_method(); // compiles
-    println!("{:?}", num_ref); // compiles
+    num_ref.some_method(); // ✅
+    println!("{:?}", num_ref); // ✅
 }
 ```
 
@@ -585,7 +589,7 @@ fn dynamic_thread_print(t: Box<dyn Display + Send>) {
     }).join();
 }
 
-fn static_thread_print<T: Display + Send>(t: T) {
+fn static_thread_print<T: Display + Send>(t: T) { // ❌
     std::thread::spawn(move || {
         println!("{}", t);
     }).join();
@@ -594,7 +598,7 @@ fn static_thread_print<T: Display + Send>(t: T) {
 
 It throws this compile error:
 
-```rust
+```none
 error[E0310]: the parameter type `T` may not live long enough
   --> src/lib.rs:10:5
    |
@@ -621,7 +625,7 @@ fn dynamic_thread_print(t: Box<dyn Display + Send>) {
     }).join();
 }
 
-fn static_thread_print<T: Display + Send + 'static>(t: T) {
+fn static_thread_print<T: Display + Send + 'static>(t: T) { // ✅
     std::thread::spawn(move || {
         println!("{}", t);
     }).join();
@@ -657,19 +661,19 @@ fn static_thread_print<T: Display + Send + 'static>(t: T) {
 - Rust's lifetime elision rules for trait objects are always right
 - Rust knows more about the semantics of my program than I do
 
-This misconception is the previous 2 misconceptions combined into one example:
+This misconception is the previous two misconceptions combined into one example:
 
 ```rust
 use std::fmt::Display;
 
-fn box_displayable<T: Display>(t: T) -> Box<dyn Display> {
+fn box_displayable<T: Display>(t: T) -> Box<dyn Display> { // ❌
     Box::new(t)
 }
 ```
 
 Throws this error:
 
-```rust
+```none
 error[E0310]: the parameter type `T` may not live long enough
  --> src/lib.rs:4:5
   |
@@ -690,7 +694,7 @@ Okay, let's fix it how the compiler is telling us to fix it, nevermind the fact 
 ```rust
 use std::fmt::Display;
 
-fn box_displayable<T: Display + 'static>(t: T) -> Box<dyn Display> {
+fn box_displayable<T: Display + 'static>(t: T) -> Box<dyn Display> { // ✅
     Box::new(t)
 }
 ```
@@ -700,7 +704,7 @@ So the program compiles now... but is this what we actually want? Probably, but 
 ```rust
 use std::fmt::Display;
 
-fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> {
+fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> { // ✅
     Box::new(t)
 }
 ```
@@ -708,14 +712,14 @@ fn box_displayable<'a, T: Display + 'a>(t: T) -> Box<dyn Display + 'a> {
 This function accepts all the same arguments as the previous version plus a lot more! Does that make it better? Not necessarily, it depends on the requirements and constraints of our program. This example is a bit abstract so let's take a look at a simpler and more obvious case:
 
 ```rust
-fn return_first(a: &str, b: &str) -> &str {
+fn return_first(a: &str, b: &str) -> &str { // ❌
     a
 }
 ```
 
 Throws:
 
-```rust
+```none
 error[E0106]: missing lifetime specifier
  --> src/lib.rs:1:38
   |
@@ -732,7 +736,7 @@ help: consider introducing a named lifetime parameter
 The error message recommends annotating both inputs and the output with the same lifetime. If we did this our program would compile but this function would overly-constrain the return type. What we actually want is this:
 
 ```rust
-fn return_first<'a>(a: &'a str, b: &str) -> &'a str {
+fn return_first<'a>(a: &'a str, b: &str) -> &'a str { // ✅
     a
 }
 ```
@@ -774,14 +778,13 @@ fn main() {
         // `short` dropped here
     }
 
-    // compile error, `short` still "borrowed" after drop
-    assert_eq!(has.lifetime, "long");
+    assert_eq!(has.lifetime, "long"); // ❌ - `short` still "borrowed" after drop
 }
 ```
 
 It throws:
 
-```rust
+```none
 error[E0597]: `short` does not live long enough
   --> src/main.rs:11:24
    |
@@ -819,8 +822,7 @@ fn main() {
         // `short` dropped here
     }
 
-    // still a compile error, `short` still "borrowed" after drop
-    assert_eq!(has.lifetime, "long");
+    assert_eq!(has.lifetime, "long"); // ❌ - `short` still "borrowed" after drop
 }
 ```
 
@@ -845,7 +847,7 @@ fn takes_shared_ref(n: &i32) {}
 
 fn main() {
     let mut a = 10;
-    takes_shared_ref(&mut a); // compiles
+    takes_shared_ref(&mut a); // ✅
     takes_shared_ref(&*(&mut a)); // above line desugared
 }
 ```
@@ -857,13 +859,13 @@ fn main() {
     let mut a = 10;
     let b: &i32 = &*(&mut a); // re-borrowed as immutable
     let c: &i32 = &a;
-    dbg!(b, c); // compile error
+    dbg!(b, c); // ❌
 }
 ```
 
 Throws this error:
 
-```rust
+```none
 error[E0502]: cannot borrow `a` as immutable because it is also borrowed as mutable
  --> src/main.rs:4:19
   |
@@ -903,7 +905,7 @@ fn main() {
     };
     let str_ref = s.get_string(); // mut ref downgraded to shared ref
     s.mutate_string(); // str_ref invalidated, now a dangling pointer
-    dbg!(str_ref); // compile error as expected
+    dbg!(str_ref); // ❌ - as expected!
 }
 ```
 
@@ -917,7 +919,7 @@ struct Struct;
 
 impl Struct {
     // downgrades mut self to shared self
-    fn some_method(&mut self) -> &self;
+    fn some_method(&mut self) -> &Self;
 
     // downgrades mut self to shared T
     fn other_method(&mut self) -> &T;
@@ -942,7 +944,7 @@ fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<Playe
     let player_b: &Player = server.entry(player_b).or_default();
 
     // do something with players
-    dbg!(player_a, player_b); // compile error
+    dbg!(player_a, player_b); // ❌
 }
 ```
 
@@ -968,7 +970,7 @@ fn start_game(player_a: PlayerID, player_b: PlayerID, server: &mut HashMap<Playe
     let player_b = server.get(&player_b);
 
     // do something with players
-    dbg!(player_a, player_b); // compiles
+    dbg!(player_a, player_b); // ✅
 }
 ```
 
@@ -992,13 +994,13 @@ fn function(x: &i32) -> &i32 {
 }
 
 fn main() {
-    let closure = |x: &i32| x;
+    let closure = |x: &i32| x; // ❌
 }
 ```
 
 Throws:
 
-```rust
+```none
 error: lifetime may not live long enough
  --> src/main.rs:6:29
   |
@@ -1068,98 +1070,6 @@ There's no real lesson or insight to be had here, it just is what it is.
 - every language has gotchas 🤷
 
 
-### 11) `'static` refs can always be coerced into `'a` refs
-
-I presented this code example earlier:
-
-```rust
-fn get_str<'a>() -> &'a str; // generic version
-fn get_str() -> &'static str; // 'static version
-```
-
-Several readers contacted me to ask if there was a practical difference between the two. At first I wasn't sure but after some investigation it unfortunately turns out that the answer is yes, there is a practical difference between these two functions.
-
-So ordinarily, when working with values, we can use a `'static` ref in place of an `'a` ref because Rust automatically coerces `'static` refs into `'a` refs. Intuitively this makes sense, since using a ref with a long lifetime where only a short lifetime is required will never cause any memory safety issues. The program below compiles as expected:
-
-```rust
-use rand;
-
-fn generic_str_fn<'a>() -> &'a str {
-    "str"
-}
-
-fn static_str_fn() -> &'static str {
-    "str"
-}
-
-fn a_or_b<T>(a: T, b: T) -> T {
-    if rand::random() {
-        a
-    } else {
-        b
-    }
-}
-
-fn main() {
-    let some_string = "string".to_owned();
-    let some_str = &some_string[..];
-    let str_ref = a_or_b(some_str, generic_str_fn()); // compiles
-    let str_ref = a_or_b(some_str, static_str_fn()); // compiles
-}
-```
-
-However this coercion does not take place when the references are part of a function's type signature, so this does not compile:
-
-```rust
-use rand;
-
-fn generic_str_fn<'a>() -> &'a str {
-    "str"
-}
-
-fn static_str_fn() -> &'static str {
-    "str"
-}
-
-fn a_or_b_fn<T, F>(a: T, b_fn: F) -> T
-    where F: Fn() -> T
-{
-    if rand::random() {
-        a
-    } else {
-        b_fn()
-    }
-}
-
-fn main() {
-    let some_string = "string".to_owned();
-    let some_str = &some_string[..];
-    let str_ref = a_or_b_fn(some_str, generic_str_fn); // compiles
-    let str_ref = a_or_b_fn(some_str, static_str_fn); // compile error
-}
-```
-
-Throws this error:
-
-```rust
-error[E0597]: `some_string` does not live long enough
-  --> src/main.rs:23:21
-   |
-23 |     let some_str = &some_string[..];
-   |                     ^^^^^^^^^^^ borrowed value does not live long enough
-...
-25 |     let str_ref = a_or_b_fn(some_str, static_str_fn);
-   |                   ---------------------------------- argument requires that `some_string` is borrowed for `'static`
-26 | }
-   | - `some_string` dropped here while still borrowed
-```
-
-It's debatable whether or not this is a Rust Gotcha, since it's not a simple straight-forward case of coercing a `&'static str` into a `&'a str` but coercing a `for<T> Fn() -> &'static T` into a `for<'a, T> Fn() -> &'a T`. The former is a coercion between values and the latter is a coercion between types.
-
-**Key Takeaways**
-- functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
-
-
 
 ## Conclusion
 
@@ -1190,7 +1100,6 @@ It's debatable whether or not this is a Rust Gotcha, since it's not a simple str
 - try not to re-borrow mut refs as shared refs, or you're gonna have a bad time
 - re-borrowing a mut ref doesn't end its lifetime, even if the ref is dropped
 - every language has gotchas 🤷
-- functions with `for<'a, T> fn() -> &'a T` signatures are more flexible and work in more scenarios than functions with `for<T> fn() -> &'static T` signatures
 
 
 
@@ -1208,14 +1117,17 @@ Discuss this article on
 
 ## Notifications
 
-Get notified when the next blog post get published by
+Get notified when the next article get published by
 - [Following pretzelhammer on Twitter](https://twitter.com/pretzelhammer) or
-- Watching this repo's releases (click on `Watch` dropdown and select `Releases only`)
+- [Subscribing to this repo's release RSS feed](https://github.com/pretzelhammer/rust-blog/releases.atom) or
+- Watching this repo's releases (click `Watch` -> click `Custom` -> select `Releases` -> click `Apply`)
 
 
 
 ## Further Reading
 
 - [Sizedness in Rust](./sizedness-in-rust.md)
+- [Tour of Rust's Standard Library Traits](./tour-of-rusts-standard-library-traits.md)
+- [RESTful API in Sync & Async Rust](./restful-api-in-sync-and-async-rust.md)
 - [Learning Rust in 2020](./learning-rust-in-2020.md)
 - [Learn Assembly with Entirely Too Many Brainfuck Compilers](./too-many-brainfuck-compilers.md)
